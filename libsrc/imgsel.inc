@@ -14,6 +14,7 @@ ImageData                       ANY
 
 !!!<summary>Abstract class.</summary>
 TBaseImageSelector            CLASS(TWnd), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
+framesCount                     UNSIGNED, PROTECTED
 frameSize                       LIKE(SIZE), PROTECTED !- size of each frame
 framesData                      &typImgSelFramesData, PROTECTED
 framesImage                     &TGdiPlusBitmap, PROTECTED
@@ -23,6 +24,7 @@ currentFrame                    UNSIGNED, PROTECTED
 bkColor                         LONG, PROTECTED
 selColor                        LONG, PROTECTED
 selPenWidth                     UNSIGNED, PROTECTED
+orientation                     UNSIGNED, PROTECTED   !- 1: vertical, 2: horizontal
 
 Construct                       PROCEDURE()
 Destruct                        PROCEDURE(), DERIVED
@@ -40,6 +42,7 @@ SetOutlineSize                  PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
 PrepareControl                  PROCEDURE(), PROTECTED, VIRTUAL
 CreateFramesImage               PROCEDURE(), PROTECTED, VIRTUAL
 RedrawFramesImage               PROCEDURE(TDC pDc), PROTECTED, VIRTUAL
+GetCurrentSelRect               PROCEDURE(*GpRectF pSelRect), PROTECTED, VIRTUAL
 OnPaint                         PROCEDURE(), PROTECTED, VIRTUAL
 OnVScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnHScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
@@ -51,24 +54,12 @@ OnFrameSelected                 PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, VIRT
 
 !!!<summary>Vertical selector.</summary>
 TVerticalImageSelector        CLASS(TBaseImageSelector), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
-SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex), DERIVED
 PrepareControl                  PROCEDURE(), PROTECTED, DERIVED
-CreateFramesImage               PROCEDURE(), PROTECTED, DERIVED
-RedrawFramesImage               PROCEDURE(TDC pDc), PROTECTED, DERIVED
-OnVScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, DERIVED
-OnMouseWheel                    PROCEDURE(UNSIGNED wParam), BOOL, PROTECTED, DERIVED
-OnLButtonDown                   PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, DERIVED
                               END
 
 
 !!!<summary>Horizontal selector.</summary>
 THorizontalImageSelector      CLASS(TBaseImageSelector), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
-SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex), DERIVED
 PrepareControl                  PROCEDURE(), PROTECTED, DERIVED
-CreateFramesImage               PROCEDURE(), PROTECTED, DERIVED
-RedrawFramesImage               PROCEDURE(TDC pDc), PROTECTED, DERIVED
-OnHScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, DERIVED
-OnMouseWheel                    PROCEDURE(UNSIGNED wParam), BOOL, PROTECTED, DERIVED
-OnLButtonDown                   PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, DERIVED
                               END
 

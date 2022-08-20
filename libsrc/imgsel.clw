@@ -26,6 +26,9 @@
 WM_MOUSEWHEEL                 EQUATE(020Ah)
 COLOR:WINDOWGRAY              EQUATE(0F0F0F0H)    !- default TAB background 
 
+IMGSEL_ORIENTATION_VERTICAL   EQUATE(1)
+IMGSEL_ORIENTATION_HORIZONTAL EQUATE(2)
+
 
 !!!region macros
 LOWORD                        PROCEDURE(LONG pLongVal)
@@ -146,7 +149,40 @@ TBaseImageSelector.AddRawData PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
   ADD(SELF.framesData)
   
 TBaseImageSelector.SelectFrame    PROCEDURE(UNSIGNED pFrameIndex)
+g                                   TGdiPlusGraphics
+pen                                 TGdiPlusPen
+selRect                             LIKE(GpRectF)
   CODE
+  IF SELF.currentFrame <> pFrameIndex
+    g.FromImage(SELF.framesImage)
+      
+    !- selection rect
+    SELF.GetCurrentSelRect(selRect)
+    
+    !- erase previous selection
+    pen.CreatePen(GdipMakeARGB(SELF.bkColor), SELF.selPenWidth)
+    g.DrawRectangle(pen, selRect)
+    pen.DeletePen()
+ 
+    !- draw new selection
+    SELF.currentFrame = pFrameIndex
+    IF SELF.currentFrame > 0 AND SELF.currentFrame <= SELF.framesCount
+      CASE SELF.orientation
+      OF IMGSEL_ORIENTATION_VERTICAL
+        selRect.y = SELF.frameOutline.cy + (SELF.currentFrame-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
+      OF IMGSEL_ORIENTATION_HORIZONTAL
+        selRect.x = SELF.frameOutline.cx + (SELF.currentFrame-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
+      END
+      
+      pen.CreatePen(GdipMakeARGB(SELF.selColor), SELF.selPenWidth)
+      g.DrawRectangle(pen, selRect)
+      pen.DeletePen()
+    END
+
+    g.DeleteGraphics()
+    
+    SELF.OnFrameSelected(SELF.currentFrame)
+  END
   
 TBaseImageSelector.SetBackColor   PROCEDURE(LONG pBackColor)
   CODE
@@ -173,11 +209,123 @@ TBaseImageSelector.PrepareControl PROCEDURE()
   CODE
   
 TBaseImageSelector.CreateFramesImage  PROCEDURE()
+rc                                      TRect
+frame                                   TGdiPlusImage
+thumbnail                               TGdiPlusImage
+g                                       TGdiPlusGraphics
+brush                                   TGdiPlusSolidBrush
+x                                       SIGNED, AUTO
+y                                       SIGNED, AUTO
+i                                       LONG, AUTO
   CODE
+  !- number of frames
+  SELF.framesCount = RECORDS(SELF.framesData)
+  IF SELF.framesCount = 0
+    RETURN
+  END
+  
+  !- calc frame size (width = height*1.5)
+  SELF.GetClientRect(rc)
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    SELF.frameSize.cx = rc.Width() - SELF.frameOutline.cx * 2
+    SELF.frameSize.cy = SELF.frameSize.cx * 2 / 3
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    SELF.frameSize.cy = rc.Height() - SELF.frameOutline.cy * 2
+    SELF.frameSize.cx = SELF.frameSize.cy * 3 / 2
+  END
+  
+  !- create image of combined thumbnails
+  SELF.framesImage &= NEW TGdiPlusBitmap
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    SELF.framesImage.CreateBitmap(SELF.frameSize.cx + SELF.frameOutline.cx * 2, (SELF.frameSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy, PixelFormat24bppRGB)
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    SELF.framesImage.CreateBitmap((SELF.frameSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx, SELF.frameSize.cy + SELF.frameOutline.cy * 2, PixelFormat24bppRGB)
+  END
+  g.FromImage(SELF.framesImage)
+  
+  !- erase background
+  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
+  g.FillRectangle(brush, 0, 0, SELF.framesImage.GetWidth(), SELF.framesImage.GetHeight())
+  brush.DeleteBrush()
+  
+  !- loop thru all frames
+  x = SELF.frameOutline.cx
+  y = SELF.frameOutline.cy
+  LOOP i=1 TO SELF.framesCount
+    GET(SELF.framesData, i)
+    !- create full image
+    frame.FromString(SELF.framesData.ImageData)
+    !- create thumbnail
+    frame.GetThumbnailImage(SELF.frameSize.cx, SELF.frameSize.cy, thumbnail)
+    !- append the thumbnail to combined image
+    g.DrawImage(thumbnail, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
+    !- clean up frame image and its thumbnail
+    frame.DisposeImage()
+    thumbnail.DisposeImage()
+    !- shift down/right
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      y += SELF.frameSize.cy + SELF.frameOutline.cy
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      x += SELF.frameSize.cx + SELF.frameOutline.cx
+    END
+  END
+  
+  !- select 1st frame
+  SELF.SelectFrame(1)
+  
+  !- free data queue
+  FREE(SELF.framesData)
   
 TBaseImageSelector.RedrawFramesImage  PROCEDURE(TDC dc)
+g                                       TGdiPlusGraphics
+rc                                      TRect
+destRect                                LIKE(GpRect)
+srcRect                                 LIKE(GpRect)
   CODE
+  g.FromHDC(dc.GetHandle())
+  SELF.GetClientRect(rc)
   
+  !- draw visible part of the image
+  destRect.x=0
+  destRect.y=0
+  destRect.width=rc.Width()
+  destRect.height=rc.Height()
+  
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    srcRect.x=0
+    srcRect.y=(SELF.framesImage.GetHeight() - rc.Height()) * SELF.scrollPos / 100
+    srcRect.width=SELF.framesImage.GetWidth()
+    srcRect.height=rc.Height()
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    srcRect.x=(SELF.framesImage.GetWidth() - rc.Width()) * SELF.scrollPos / 100
+    srcRect.y=0
+    srcRect.width=rc.Width()
+    srcRect.height=SELF.framesImage.GetHeight()
+  END
+
+  g.DrawImage(SELF.framesImage, destRect, srcRect, UnitPixel)
+  
+TBaseImageSelector.GetCurrentSelRect  PROCEDURE(*GpRectF pSelRect)
+  CODE
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    pSelRect.x = SELF.frameOutline.cx-SELF.selPenWidth/2
+    pSelRect.y = SELF.frameOutline.cy + (SELF.currentFrame-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
+    pSelRect.width = SELF.frameSize.cx+SELF.selPenWidth
+    pSelRect.height = SELF.frameSize.cy+SELF.selPenWidth
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    pSelRect.x = SELF.frameOutline.cx + (SELF.currentFrame-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
+    pSelRect.y = SELF.frameOutline.cy-SELF.selPenWidth/2
+    pSelRect.width = SELF.frameSize.cx+SELF.selPenWidth
+    pSelRect.height = SELF.frameSize.cy+SELF.selPenWidth
+  ELSE
+    printd('TBaseImageSelector.CalcNewSelection failed: invalid orientation.')
+  END
+
 TBaseImageSelector.OnPaint    PROCEDURE()
 dc                              TPaintDC
   CODE
@@ -190,19 +338,188 @@ dc                              TPaintDC
   SELF.RedrawFramesImage(dc)
   
 TBaseImageSelector.OnVScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
+rc                              TRect
+dy                              UNSIGNED, AUTO
+py                              UNSIGNED, AUTO
+action                          USHORT, AUTO
+pos                             SIGNED, AUTO
+si                              LIKE(SCROLLINFO)
+dc                              TDC
   CODE
-  RETURN TRUE
+  IF SELF.orientation = IMGSEL_ORIENTATION_VERTICAL
+    SELF.GetClientRect(rc)
+    dy = 1                                !- line scroll pos
+    py = 100 / SELF.framesCount           !- page scroll pos
+  
+    !- calc scroll pos
+    action = LOWORD(wParam)
+    pos = -1
+    CASE action 
+    OF SB_THUMBPOSITION OROF SB_THUMBTRACK
+      pos = HIWORD(wParam)
+    OF SB_LINEDOWN
+      pos = SELF.scrollPos + dy
+    OF SB_LINEUP
+      pos = SELF.scrollPos - dy
+    OF SB_PAGEDOWN
+      pos = SELF.scrollPos + py
+    OF SB_PAGEUP
+      pos = SELF.scrollPos - py
+    END
+  
+    IF pos = -1
+      !- no scroll
+      RETURN TRUE
+    END
+  
+    !- get actual scroll pos
+    si.cbSize = SIZE(si)
+    si.fMask = SIF_POS
+    si.nPos = pos
+    si.nTrackPos = 0
+    SELF.SetScrollInfo(SB_VERT, si, TRUE)
+    SELF.GetScrollInfo(SB_VERT, si)
+    pos = si.nPos
+
+    !- redraw if scroll pos changed
+    IF SELF.scrollPos <> pos
+      SELF.scrollPos = pos
+      dc.GetDC(SELF)
+      SELF.RedrawFramesImage(dc)
+      dc.ReleaseDC()
+    END
+  END
+  
+  RETURN FALSE
     
 TBaseImageSelector.OnHScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
+rc                              TRect
+dx                              UNSIGNED, AUTO
+px                              UNSIGNED, AUTO
+action                          USHORT, AUTO
+pos                             SIGNED, AUTO
+si                              LIKE(SCROLLINFO)
+dc                              TDC
   CODE
-  RETURN TRUE
+  IF SELF.orientation = IMGSEL_ORIENTATION_HORIZONTAL
+    SELF.GetClientRect(rc)
+    dx = 1                                !- line scroll pos
+    px = 100 / SELF.framesCount           !- page scroll pos
+  
+    !- calc scroll pos
+    action = LOWORD(wParam)
+    pos = -1
+    CASE action 
+    OF SB_THUMBPOSITION OROF SB_THUMBTRACK
+      pos = HIWORD(wParam)
+    OF SB_LINERIGHT
+      pos = SELF.scrollPos + dx
+    OF SB_LINELEFT
+      pos = SELF.scrollPos - dx
+    OF SB_PAGERIGHT
+      pos = SELF.scrollPos + px
+    OF SB_PAGELEFT
+      pos = SELF.scrollPos - px
+    END
+  
+    IF pos = -1
+      !- no scroll
+      RETURN TRUE
+    END
+  
+    !- get actual scroll pos
+    si.cbSize = SIZE(si)
+    si.fMask = SIF_POS
+    si.nPos = pos
+    si.nTrackPos = 0
+    SELF.SetScrollInfo(SB_HORZ, si, TRUE)
+    SELF.GetScrollInfo(SB_HORZ, si)
+    pos = si.nPos
+
+    !- redraw if scroll pos changed
+    IF SELF.scrollPos <> pos
+      SELF.scrollPos = pos
+      dc.GetDC(SELF)
+      SELF.RedrawFramesImage(dc)
+      dc.ReleaseDC()
+    END
+  END
+  
+  RETURN FALSE
 
 TBaseImageSelector.OnMouseWheel   PROCEDURE(UNSIGNED wParam)
+distance                            SHORT, AUTO
+vKey                                SHORT, AUTO
+action                              USHORT, AUTO
   CODE
+  distance = HIWORD(wParam)
+  vKey = LOWORD(wParam)
+
+  IF distance
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      IF distance > 0
+        action = SB_LINEUP
+      ELSE
+        action = SB_LINEDOWN
+      END
+      SELF.SendMessage(WM_VSCROLL, action, 0)
+      
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      IF distance > 0
+        action = SB_LINELEFT
+      ELSE
+        action = SB_LINERIGHT
+      END
+      SELF.SendMessage(WM_HSCROLL, action, 0)
+    END
+    
+    RETURN FALSE
+  END
   RETURN TRUE
 
 TBaseImageSelector.OnLButtonDown  PROCEDURE(UNSIGNED wParam, LONG lParam)
+dc                                  TDC
+pt                                  LIKE(POINT)
+rc                                  TRect
+n                                   LONG(0)
+bFrameClicked                       BOOL(FALSE)
   CODE
+  SELF.GetClientRect(rc)
+  
+  !- pos on the visible image
+  pt.x = GET_X_LPARAM(lParam)
+  pt.y = GET_Y_LPARAM(lParam)
+
+  !- pos on the big image
+  !- find selected frame number
+  !- check for outline clicked
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    pt.y += (SELF.framesImage.GetHeight() - rc.Height()) * SELF.scrollPos / 100
+    n = (pt.y / (SELF.frameSize.cy + SELF.frameOutline.cy)) + 1
+    bFrameClicked = CHOOSE(pt.y > ((n-1)*SELF.frameSize.cy + n*SELF.frameOutline.cy))
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    pt.x += (SELF.framesImage.GetWidth() - rc.Width()) * SELF.scrollPos / 100
+    n = (pt.x / (SELF.frameSize.cx + SELF.frameOutline.cx)) + 1
+    bFrameClicked = CHOOSE(pt.x > ((n-1)*SELF.frameSize.cx + n*SELF.frameOutline.cx))
+  END
+  
+  IF bFrameClicked
+    IF SELF.currentFrame <> n
+      SELF.SelectFrame(n)
+      
+      !- redraw the control
+      dc.GetDC(SELF)
+      SELF.RedrawFramesImage(dc)
+      dc.ReleaseDC()
+      
+      !- don't call default handler DefSubclassProc
+      RETURN FALSE
+    END
+  END
+  
+  !- call default handler DefSubclassProc
   RETURN TRUE
 
 TBaseImageSelector.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
@@ -211,433 +528,17 @@ TBaseImageSelector.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
 !!!endregion
 
 !!!region TVerticalImageSelector
-TVerticalImageSelector.SelectFrame    PROCEDURE(UNSIGNED pFrameIndex)
-g                                       TGdiPlusGraphics
-pen                                     TGdiPlusPen
-selRect                                 LIKE(GpRectF)
-  CODE
-  IF SELF.currentFrame <> pFrameIndex
-    g.FromImage(SELF.framesImage)
-      
-    !- selection rect
-    selRect.x = SELF.frameOutline.cx-SELF.selPenWidth/2
-    selRect.y = SELF.frameOutline.cy + (SELF.currentFrame-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
-    selRect.width = SELF.frameSize.cx+SELF.selPenWidth
-    selRect.height = SELF.frameSize.cy+SELF.selPenWidth
-  
-    !- erase previous selection
-    pen.CreatePen(GdipMakeARGB(SELF.bkColor), SELF.selPenWidth)
-    g.DrawRectangle(pen, selRect)
-    pen.DeletePen()
- 
-    !- draw new selection
-    SELF.currentFrame = pFrameIndex
-    IF SELF.currentFrame > 0 AND SELF.currentFrame <= RECORDS(SELF.framesData)
-      selRect.y = SELF.frameOutline.cy + (SELF.currentFrame-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
-    
-      pen.CreatePen(GdipMakeARGB(SELF.selColor), SELF.selPenWidth)
-      g.DrawRectangle(pen, selRect)
-      pen.DeletePen()
-    END
-
-    g.DeleteGraphics()
-    
-    SELF.OnFrameSelected(SELF.currentFrame)
-  END
-  
 TVerticalImageSelector.PrepareControl PROCEDURE()
   CODE
+  SELF.orientation = IMGSEL_ORIENTATION_VERTICAL
   SELF.FEQ{PROP:VScroll} = TRUE
   SELF.ShowScrollBar(SB_VERT, TRUE)
-  
-TVerticalImageSelector.CreateFramesImage  PROCEDURE()
-nRecs                                       LONG, AUTO
-rc                                          TRect
-frame                                       TGdiPlusImage
-thumbnail                                   TGdiPlusImage
-g                                           TGdiPlusGraphics
-brush                                       TGdiPlusSolidBrush
-x                                           SIGNED, AUTO
-y                                           SIGNED, AUTO
-i                                           LONG, AUTO
-  CODE
-  SELF.GetClientRect(rc)
-  SELF.frameSize.cx = rc.Width() - SELF.frameOutline.cx * 2
-  SELF.frameSize.cy = SELF.frameSize.cx * 2 / 3
-  nRecs = RECORDS(SELF.framesData)
-  
-  !- create image of combined thumbnails
-  SELF.framesImage &= NEW TGdiPlusBitmap
-  SELF.framesImage.CreateBitmap(SELF.frameSize.cx + SELF.frameOutline.cx * 2, (SELF.frameSize.cy + SELF.frameOutline.cy) * nRecs + SELF.frameOutline.cy, PixelFormat24bppRGB)
-  g.FromImage(SELF.framesImage)
-  !- erase background
-  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
-  g.FillRectangle(brush, 0, 0, SELF.framesImage.GetWidth(), SELF.framesImage.GetHeight())
-  brush.DeleteBrush()
-  
-  !- loop thru all frames
-  x = SELF.frameOutline.cx
-  y = SELF.frameOutline.cy
-  LOOP i=1 TO RECORDS(SELF.framesData)
-    GET(SELF.framesData, i)
-    !- create full image
-    frame.FromString(SELF.framesData.ImageData)
-    !- create thumbnail
-    frame.GetThumbnailImage(SELF.frameSize.cx, SELF.frameSize.cy, thumbnail)
-    !- draw thumbnail in bitmap
-    g.DrawImage(thumbnail, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
-    !- dispose images
-    frame.DisposeImage()
-    thumbnail.DisposeImage()
-    !- shift down
-    y += SELF.frameSize.cy + SELF.frameOutline.cy
-  END
-  
-  SELF.SelectFrame(1)
-  
-TVerticalImageSelector.RedrawFramesImage  PROCEDURE(TDC dc)
-g                                           TGdiPlusGraphics
-rc                                          TRect
-destRect                                    LIKE(GpRect)
-srcRect                                     LIKE(GpRect)
-  CODE
-  g.FromHDC(dc.GetHandle())
-  SELF.GetClientRect(rc)
-  
-  !- draw visible part of the image
-  destRect.x=0
-  destRect.y=0
-  destRect.width=rc.Width()
-  destRect.height=rc.Height()
-  
-  srcRect.x=0
-  srcRect.y=(SELF.framesImage.GetHeight() - rc.Height()) * SELF.scrollPos / 100
-  srcRect.width=SELF.framesImage.GetWidth()
-  srcRect.height=rc.Height()
-
-  g.DrawImage(SELF.framesImage, destRect, srcRect, UnitPixel)
-  
-TVerticalImageSelector.OnVScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
-rc                                  TRect
-dy                                  UNSIGNED, AUTO
-py                                  UNSIGNED, AUTO
-action                              USHORT, AUTO
-pos                                 SIGNED, AUTO
-si                                  LIKE(SCROLLINFO)
-dc                                  TDC
-  CODE
-  SELF.GetClientRect(rc)
-  dy = 1                                !- line scroll pos
-  py = 100 / RECORDS(SELF.framesData)   !- page scroll pos
-  
-  !- calc scroll pos
-  action = LOWORD(wParam)
-  pos = -1
-  CASE action 
-  OF SB_THUMBPOSITION OROF SB_THUMBTRACK
-    pos = HIWORD(wParam)
-  OF SB_LINEDOWN
-    pos = SELF.scrollPos + dy
-  OF SB_LINEUP
-    pos = SELF.scrollPos - dy
-  OF SB_PAGEDOWN
-    pos = SELF.scrollPos + py
-  OF SB_PAGEUP
-    pos = SELF.scrollPos - py
-  END
-  
-  IF pos = -1
-    !- no scroll
-    RETURN TRUE
-  END
-  
-  !- get actual scroll pos
-  si.cbSize = SIZE(si)
-  si.fMask = SIF_POS
-  si.nPos = pos
-  si.nTrackPos = 0
-  SELF.SetScrollInfo(SB_VERT, si, TRUE)
-  SELF.GetScrollInfo(SB_VERT, si)
-  pos = si.nPos
-
-  !- redraw if scroll pos changed
-  IF SELF.scrollPos <> pos
-    SELF.scrollPos = pos
-    dc.GetDC(SELF)
-    SELF.RedrawFramesImage(dc)
-    dc.ReleaseDC()
-  END
-  
-  RETURN FALSE
-
-TVerticalImageSelector.OnMouseWheel   PROCEDURE(UNSIGNED wParam)
-distance                                SHORT, AUTO
-vKey                                    SHORT, AUTO
-action                                  USHORT, AUTO
-  CODE
-  distance = HIWORD(wParam)
-  vKey = LOWORD(wParam)
-
-  IF distance
-    IF distance > 0
-      action = SB_LINEUP
-    ELSE
-      action = SB_LINEDOWN
-    END
-    SELF.SendMessage(WM_VSCROLL, action, 0)
-    RETURN FALSE
-  END
-  RETURN TRUE
-
-TVerticalImageSelector.OnLButtonDown  PROCEDURE(UNSIGNED wParam, LONG lParam)
-dc                                      TDC
-pt                                      LIKE(POINT)
-rc                                      TRect
-n                                       LONG, AUTO
-  CODE
-  SELF.GetClientRect(rc)
-  
-  !- pos on the visible image
-  pt.x = GET_X_LPARAM(lParam)
-  pt.y = GET_Y_LPARAM(lParam)
-
-  !- pos on the big image
-  pt.y += (SELF.framesImage.GetHeight() - rc.Height()) * SELF.scrollPos / 100
-  
-  !- find selected frame number
-  n = (pt.y / (SELF.frameSize.cy + SELF.frameOutline.cy)) + 1
-  
-  !- check for outline clicked
-  IF pt.y > ((n-1)*SELF.frameSize.cy + n*SELF.frameOutline.cy)
-    IF SELF.currentFrame <> n
-      SELF.SelectFrame(n)
-      
-      !- redraw the control
-      dc.GetDC(SELF)
-      SELF.RedrawFramesImage(dc)
-      dc.ReleaseDC()
-      
-      !- don't call default handler DefSubclassProc
-      RETURN FALSE
-    END
-  END
-  
-  !- call default handler DefSubclassProc
-  RETURN TRUE
 !!!endregion
 
-!!!region THorizontalImageSelector
-THorizontalImageSelector.SelectFrame  PROCEDURE(UNSIGNED pFrameIndex)
-g                                       TGdiPlusGraphics
-pen                                     TGdiPlusPen
-selRect                                 LIKE(GpRectF)
-  CODE
-  IF SELF.currentFrame <> pFrameIndex
-    g.FromImage(SELF.framesImage)
-      
-    !- selection rect
-    selRect.x = SELF.frameOutline.cx + (SELF.currentFrame-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
-    selRect.y = SELF.frameOutline.cy-SELF.selPenWidth/2
-    selRect.width = SELF.frameSize.cx+SELF.selPenWidth
-    selRect.height = SELF.frameSize.cy+SELF.selPenWidth
-  
-    !- erase previous selection
-    pen.CreatePen(GdipMakeARGB(SELF.bkColor), SELF.selPenWidth)
-    g.DrawRectangle(pen, selRect)
-    pen.DeletePen()
- 
-    !- draw new selection
-    SELF.currentFrame = pFrameIndex
-    IF SELF.currentFrame > 0 AND SELF.currentFrame <= RECORDS(SELF.framesData)
-      selRect.x = SELF.frameOutline.cx + (SELF.currentFrame-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
-    
-      pen.CreatePen(GdipMakeARGB(SELF.selColor), SELF.selPenWidth)
-      g.DrawRectangle(pen, selRect)
-      pen.DeletePen()
-    END
-
-    g.DeleteGraphics()
-    
-    SELF.OnFrameSelected(SELF.currentFrame)
-  END
-  
+!!!!region THorizontalImageSelector
 THorizontalImageSelector.PrepareControl   PROCEDURE()
   CODE
+  SELF.orientation = IMGSEL_ORIENTATION_HORIZONTAL
   SELF.FEQ{PROP:HScroll} = TRUE
   SELF.ShowScrollBar(SB_HORZ, TRUE)
-  
-THorizontalImageSelector.CreateFramesImage    PROCEDURE()
-nRecs                                           LONG, AUTO
-rc                                              TRect
-frame                                           TGdiPlusImage
-thumbnail                                       TGdiPlusImage
-g                                               TGdiPlusGraphics
-brush                                           TGdiPlusSolidBrush
-x                                               SIGNED, AUTO
-y                                               SIGNED, AUTO
-i                                               LONG, AUTO
-  CODE
-  SELF.GetClientRect(rc)
-  SELF.frameSize.cy = rc.Height() - SELF.frameOutline.cy * 2
-  SELF.frameSize.cx = SELF.frameSize.cy * 3 / 2
-  nRecs = RECORDS(SELF.framesData)
-  
-  !- create image of combined thumbnails
-  SELF.framesImage &= NEW TGdiPlusBitmap
-  SELF.framesImage.CreateBitmap((SELF.frameSize.cx + SELF.frameOutline.cx) * nRecs + SELF.frameOutline.cx, SELF.frameSize.cy + SELF.frameOutline.cy * 2, PixelFormat24bppRGB)
-  g.FromImage(SELF.framesImage)
-  !- erase background
-  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
-  g.FillRectangle(brush, 0, 0, SELF.framesImage.GetWidth(), SELF.framesImage.GetHeight())
-  brush.DeleteBrush()
-  
-  !- loop thru all frames
-  x = SELF.frameOutline.cx
-  y = SELF.frameOutline.cy
-  LOOP i=1 TO RECORDS(SELF.framesData)
-    GET(SELF.framesData, i)
-    !- create full image
-    frame.FromString(SELF.framesData.ImageData)
-    !- create thumbnail
-    frame.GetThumbnailImage(SELF.frameSize.cx, SELF.frameSize.cy, thumbnail)
-    !- draw thumbnail in bitmap
-    g.DrawImage(thumbnail, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
-    !- dispose images
-    frame.DisposeImage()
-    thumbnail.DisposeImage()
-    !- shift down
-    x += SELF.frameSize.cx + SELF.frameOutline.cx
-  END
-  
-  SELF.SelectFrame(1)
-  
-THorizontalImageSelector.RedrawFramesImage    PROCEDURE(TDC dc)
-g                                               TGdiPlusGraphics
-rc                                              TRect
-destRect                                        LIKE(GpRect)
-srcRect                                         LIKE(GpRect)
-  CODE
-  g.FromHDC(dc.GetHandle())
-  SELF.GetClientRect(rc)
-  
-  !- draw visible part of the image
-  destRect.x=0
-  destRect.y=0
-  destRect.width=rc.Width()
-  destRect.height=rc.Height()
-
-  srcRect.x=(SELF.framesImage.GetWidth() - rc.Width()) * SELF.scrollPos / 100
-  srcRect.y=0
-  srcRect.width=rc.Width()
-  srcRect.height=SELF.framesImage.GetHeight()
-
-  g.DrawImage(SELF.framesImage, destRect, srcRect, UnitPixel)
-  
-THorizontalImageSelector.OnHScroll    PROCEDURE(UNSIGNED wParam, LONG lParam)
-rc                                      TRect
-dx                                      UNSIGNED, AUTO
-px                                      UNSIGNED, AUTO
-action                                  USHORT, AUTO
-pos                                     SIGNED, AUTO
-si                                      LIKE(SCROLLINFO)
-dc                                      TDC
-  CODE
-  SELF.GetClientRect(rc)
-  dx = 1                                !- line scroll pos
-  px = 100 / RECORDS(SELF.framesData)   !- page scroll pos
-  
-  !- calc scroll pos
-  action = LOWORD(wParam)
-  pos = -1
-  CASE action 
-  OF SB_THUMBPOSITION OROF SB_THUMBTRACK
-    pos = HIWORD(wParam)
-  OF SB_LINERIGHT
-    pos = SELF.scrollPos + dx
-  OF SB_LINELEFT
-    pos = SELF.scrollPos - dx
-  OF SB_PAGERIGHT
-    pos = SELF.scrollPos + px
-  OF SB_PAGELEFT
-    pos = SELF.scrollPos - px
-  END
-  
-  IF pos = -1
-    !- no scroll
-    RETURN TRUE
-  END
-  
-  !- get actual scroll pos
-  si.cbSize = SIZE(si)
-  si.fMask = SIF_POS
-  si.nPos = pos
-  si.nTrackPos = 0
-  SELF.SetScrollInfo(SB_HORZ, si, TRUE)
-  SELF.GetScrollInfo(SB_HORZ, si)
-  pos = si.nPos
-
-  !- redraw if scroll pos changed
-  IF SELF.scrollPos <> pos
-    SELF.scrollPos = pos
-    dc.GetDC(SELF)
-    SELF.RedrawFramesImage(dc)
-    dc.ReleaseDC()
-  END
-  
-  RETURN FALSE
-
-THorizontalImageSelector.OnMouseWheel PROCEDURE(UNSIGNED wParam)
-distance                                SHORT, AUTO
-vKey                                    SHORT, AUTO
-action                                  USHORT, AUTO
-  CODE
-  distance = HIWORD(wParam)
-  vKey = LOWORD(wParam)
-
-  IF distance
-    IF distance > 0
-      action = SB_LINELEFT
-    ELSE
-      action = SB_LINERIGHT
-    END
-    SELF.SendMessage(WM_HSCROLL, action, 0)
-    RETURN FALSE
-  END
-  RETURN TRUE
-
-THorizontalImageSelector.OnLButtonDown    PROCEDURE(UNSIGNED wParam, LONG lParam)
-dc                                          TDC
-pt                                          LIKE(POINT)
-rc                                          TRect
-n                                           LONG, AUTO
-  CODE
-  SELF.GetClientRect(rc)
-  
-  !- pos on the visible image
-  pt.x = GET_X_LPARAM(lParam)
-  pt.y = GET_Y_LPARAM(lParam)
-
-  !- pos on the big image
-  pt.x += (SELF.framesImage.GetWidth() - rc.Width()) * SELF.scrollPos / 100
-  
-  !- find selected frame number
-  n = (pt.x / (SELF.frameSize.cx + SELF.frameOutline.cx)) + 1
-  
-  !- check for outline clicked
-  IF pt.x > ((n-1)*SELF.frameSize.cx + n*SELF.frameOutline.cx)
-    IF SELF.currentFrame <> n
-      SELF.SelectFrame(n)
-      
-      !- redraw the control
-      dc.GetDC(SELF)
-      SELF.RedrawFramesImage(dc)
-      dc.ReleaseDC()
-      
-      !- don't call default handler DefSubclassProc
-      RETURN FALSE
-    END
-  END
-  
-  !- call default handler DefSubclassProc
-  RETURN TRUE
 !!!endregion
