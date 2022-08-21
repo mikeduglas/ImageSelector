@@ -98,6 +98,9 @@ TBaseImageSelector.Construct  PROCEDURE()
   SELF.selColor = COLOR:Red
   SELF.selPenWidth = 3
   SELF.currentFrame = 0
+  SELF.rAspectRatio = 3/2
+  SELF.pixelFormat = PixelFormat24bppRGB
+  SELF.scrollFactor = 3
   
 TBaseImageSelector.Destruct   PROCEDURE()
   CODE
@@ -187,9 +190,17 @@ selRect                             LIKE(GpRectF)
 TBaseImageSelector.SetBackColor   PROCEDURE(LONG pBackColor)
   CODE
   IF pBackColor <> COLOR:NONE
-    SELF.bkColor = pBackColor
+    IF BAND(pBackColor, 80000000h)
+      SELF.bkColor = winapi::GetSysColor(BAND(pBackColor, 0ffffh))
+    ELSE
+      SELF.bkColor = pBackColor
+    END
   ELSE
-    SELF.bkColor = COLOR:WINDOWGRAY
+    IF 0{PROP:Gray}
+      SELF.bkColor = COLOR:WINDOWGRAY
+    ELSE
+      SELF.bkColor = COLOR:WHITE
+    END
   END
   
 TBaseImageSelector.SetSelColor    PROCEDURE(LONG pSelColor)
@@ -205,6 +216,21 @@ TBaseImageSelector.SetOutlineSize PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
   SELF.frameOutline.cx = pWidth
   SELF.frameOutline.cy = pHeight
 
+TBaseImageSelector.SetAspectRatio PROCEDURE(SREAL pAspectRatio)
+  CODE
+  SELF.rAspectRatio = pAspectRatio
+  
+TBaseImageSelector.SetPixelFormat PROCEDURE(GpPixelFormat pFmt)
+  CODE
+  SELF.pixelFormat = pFmt
+  
+TBaseImageSelector.SetScrollFactor    PROCEDURE(UNSIGNED pFactor)
+  CODE
+  SELF.scrollFactor = pFactor
+  IF SELF.scrollFactor = 0
+    SELF.scrollFactor = 1
+  END
+  
 TBaseImageSelector.PrepareControl PROCEDURE()
   CODE
   
@@ -229,19 +255,19 @@ i                                       LONG, AUTO
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
     SELF.frameSize.cx = rc.Width() - SELF.frameOutline.cx * 2
-    SELF.frameSize.cy = SELF.frameSize.cx * 2 / 3
+    SELF.frameSize.cy = SELF.frameSize.cx / SELF.rAspectRatio
   OF IMGSEL_ORIENTATION_HORIZONTAL
     SELF.frameSize.cy = rc.Height() - SELF.frameOutline.cy * 2
-    SELF.frameSize.cx = SELF.frameSize.cy * 3 / 2
+    SELF.frameSize.cx = SELF.frameSize.cy * SELF.rAspectRatio
   END
   
   !- create image of combined thumbnails
   SELF.framesImage &= NEW TGdiPlusBitmap
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    SELF.framesImage.CreateBitmap(SELF.frameSize.cx + SELF.frameOutline.cx * 2, (SELF.frameSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy, PixelFormat24bppRGB)
+    SELF.framesImage.CreateBitmap(SELF.frameSize.cx + SELF.frameOutline.cx * 2, (SELF.frameSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy, SELF.pixelFormat)
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    SELF.framesImage.CreateBitmap((SELF.frameSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx, SELF.frameSize.cy + SELF.frameOutline.cy * 2, PixelFormat24bppRGB)
+    SELF.framesImage.CreateBitmap((SELF.frameSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx, SELF.frameSize.cy + SELF.frameOutline.cy * 2, SELF.pixelFormat)
   END
   g.FromImage(SELF.framesImage)
   
@@ -348,9 +374,12 @@ dc                              TDC
   CODE
   IF SELF.orientation = IMGSEL_ORIENTATION_VERTICAL
     SELF.GetClientRect(rc)
-    dy = 1                                !- line scroll pos
-    py = 100 / SELF.framesCount           !- page scroll pos
-  
+    dy = SELF.scrollFactor        !- line scroll pos
+    py = 100 / SELF.framesCount   !- page scroll pos
+    IF py < dy*2
+      py = dy*2
+    END
+    
     !- calc scroll pos
     action = LOWORD(wParam)
     pos = -1
@@ -403,9 +432,12 @@ dc                              TDC
   CODE
   IF SELF.orientation = IMGSEL_ORIENTATION_HORIZONTAL
     SELF.GetClientRect(rc)
-    dx = 1                                !- line scroll pos
+    dx = SELF.scrollFactor                !- line scroll pos
     px = 100 / SELF.framesCount           !- page scroll pos
-  
+    IF px < dx*2
+      px = dx*2
+    END
+
     !- calc scroll pos
     action = LOWORD(wParam)
     pos = -1

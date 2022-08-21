@@ -15,16 +15,19 @@ ImageData                       ANY
 !!!<summary>Abstract class.</summary>
 TBaseImageSelector            CLASS(TWnd), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
 framesCount                     UNSIGNED, PROTECTED
-frameSize                       LIKE(SIZE), PROTECTED !- size of each frame
+frameSize                       LIKE(SIZE), PROTECTED     !- size of each frame
 framesData                      &typImgSelFramesData, PROTECTED
 framesImage                     &TGdiPlusBitmap, PROTECTED
-frameOutline                    LIKE(SIZE), PROTECTED
+frameOutline                    LIKE(SIZE), PROTECTED     !- default: 10x10
 scrollPos                       SIGNED, PROTECTED
 currentFrame                    UNSIGNED, PROTECTED
-bkColor                         LONG, PROTECTED
-selColor                        LONG, PROTECTED
-selPenWidth                     UNSIGNED, PROTECTED
-orientation                     UNSIGNED, PROTECTED   !- 1: vertical, 2: horizontal
+bkColor                         LONG, PROTECTED           !- default: COLOR:White
+selColor                        LONG, PROTECTED           !- default: COLOR:Red
+selPenWidth                     UNSIGNED, PROTECTED       !- default: 3
+orientation                     UNSIGNED, PROTECTED       !- 1: vertical, 2: horizontal
+rAspectRatio                    SREAL, PROTECTED          !- frame_width/frame_height; default: 3/2
+pixelFormat                     GpPixelFormat, PROTECTED  !- default: PixelFormat24bppRGB
+scrollFactor                    UNSIGNED, PROTECTED       !- default: 3
 
 Construct                       PROCEDURE()
 Destruct                        PROCEDURE(), DERIVED
@@ -38,6 +41,9 @@ SetBackColor                    PROCEDURE(LONG pBackColor)
 SetSelColor                     PROCEDURE(LONG pSelColor)
 SetSelPenWidth                  PROCEDURE(UNSIGNED pPenWidth)
 SetOutlineSize                  PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
+SetAspectRatio                  PROCEDURE(SREAL pAspectRatio)
+SetPixelFormat                  PROCEDURE(GpPixelFormat pFmt)
+SetScrollFactor                 PROCEDURE(UNSIGNED pFactor)
 
 PrepareControl                  PROCEDURE(), PROTECTED, VIRTUAL
 CreateFramesImage               PROCEDURE(), PROTECTED, VIRTUAL
