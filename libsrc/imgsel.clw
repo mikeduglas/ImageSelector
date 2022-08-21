@@ -23,6 +23,13 @@
   END
 
 
+!- Raw image data
+typImgSelFramesData           QUEUE, TYPE
+Descr                           STRING(256)
+ImageData                       ANY
+                              END
+
+
 WM_MOUSEWHEEL                 EQUATE(020Ah)
 COLOR:WINDOWGRAY              EQUATE(0F0F0F0H)    !- default TAB background 
 

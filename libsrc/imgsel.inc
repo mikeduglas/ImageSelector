@@ -6,12 +6,6 @@
   INCLUDE('gdiplus.inc'), ONCE
 
 
-typImgSelFramesData           QUEUE, TYPE
-Descr                           STRING(256)
-ImageData                       ANY
-                              END
-
-
 !!!<summary>Abstract class.</summary>
 TBaseImageSelector            CLASS(TWnd), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
 framesCount                     UNSIGNED, PROTECTED
