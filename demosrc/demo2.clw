@@ -16,6 +16,7 @@ Window                        WINDOW('Horizontal image selector'),AT(,,356,205),
 
 ThisImgSel                    CLASS(THorizontalImageSelector)
 OnFrameSelected                 PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, DERIVED
+OnFrameRejected                 PROCEDURE(STRING pFrameDescr), PROTECTED, DERIVED
                               END
 
 
@@ -54,4 +55,12 @@ ThisImgSel.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
     ?ImgViewer{PROP:Text} = '.\images\'& QDir.Name
     ?LblDescr{PROP:Text} = printf('%s (%s bytes)', QDir.Name, LEFT(FORMAT(QDir.Size, @n12_)))
   END
-  
+    
+ThisImgSel.OnFrameRejected    PROCEDURE(STRING pFrameDescr)
+  CODE
+  !- remove the file from the queue
+  QDir.Name = pFrameDescr
+  GET(QDir, QDir.Name)
+  IF NOT ERRORCODE()
+    DELETE(QDir)
+  END

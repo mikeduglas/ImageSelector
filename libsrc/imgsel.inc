@@ -12,6 +12,7 @@ framesCount                     UNSIGNED, PROTECTED
 frameSize                       LIKE(SIZE), PROTECTED     !- size of each frame
 framesData                      &typImgSelFramesData, PROTECTED
 framesImage                     &TGdiPlusBitmap, PROTECTED
+framesActualSize                LIKE(SIZE), PROTECTED      !- size of full image
 frameOutline                    LIKE(SIZE), PROTECTED     !- default: 10x10
 scrollPos                       SIGNED, PROTECTED
 currentFrame                    UNSIGNED, PROTECTED
@@ -27,6 +28,8 @@ Construct                       PROCEDURE()
 Destruct                        PROCEDURE(), DERIVED
 Init                            PROCEDURE(SIGNED pFeq), DERIVED
 Kill                            PROCEDURE()
+Reset                           PROCEDURE()
+Refresh                         PROCEDURE()
 AddFile                         PROCEDURE(STRING pFileName, <STRING pDescr>)
 !AddBlob                         PROCEDURE(BLOB pBlob, <STRING pDescr>)
 AddRawData                      PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
@@ -49,6 +52,7 @@ OnHScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, P
 OnMouseWheel                    PROCEDURE(UNSIGNED wParam), BOOL, PROTECTED, VIRTUAL
 OnLButtonDown                   PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnFrameSelected                 PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, VIRTUAL
+OnFrameRejected                 PROCEDURE(STRING pFrameDescr), PROTECTED, VIRTUAL
                               END
 
 

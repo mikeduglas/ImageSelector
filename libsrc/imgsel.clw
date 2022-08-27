@@ -108,7 +108,9 @@ TBaseImageSelector.Construct  PROCEDURE()
   SELF.rAspectRatio = 3/2
   SELF.pixelFormat = PixelFormat24bppRGB
   SELF.scrollFactor = 3
-  
+  SELF.scrollPos = 0
+  SELF.currentFrame = 0
+
 TBaseImageSelector.Destruct   PROCEDURE()
   CODE
   SELF.Kill()
@@ -137,13 +139,26 @@ TBaseImageSelector.Kill       PROCEDURE()
     SELF.framesImage &= NULL
   END
   
+TBaseImageSelector.Reset      PROCEDURE()
+  CODE
+  SELF.Kill()
+  SELF.scrollPos = 0
+  SELF.currentFrame = 0
+  
+TBaseImageSelector.Refresh    PROCEDURE()
+  CODE
+  SELF.InvalidateRect(FALSE)
+    
+  !- reset scrollbar
+  SELF.SendMessage(WM_MOUSEWHEEL, 10000h, 0)
+
 TBaseImageSelector.AddFile    PROCEDURE(STRING pFileName, <STRING pDescr>)
 df                              TDiskFile
 sData                           &STRING
   CODE
   sData &= df.LoadFile(pFileName)
   IF NOT sData &= NULL
-    SELF.AddRawData(sData)
+    SELF.AddRawData(sData, pDescr)
     DISPOSE(sData)
   END
   
@@ -163,7 +178,7 @@ g                                   TGdiPlusGraphics
 pen                                 TGdiPlusPen
 selRect                             LIKE(GpRectF)
   CODE
-  IF SELF.currentFrame <> pFrameIndex
+  IF (NOT SELF.framesImage &= NULL) AND SELF.currentFrame <> pFrameIndex
     g.FromImage(SELF.framesImage)
       
     !- selection rect
@@ -191,6 +206,7 @@ selRect                             LIKE(GpRectF)
 
     g.DeleteGraphics()
     
+    !- Notify a host
     SELF.OnFrameSelected(SELF.currentFrame)
   END
   
@@ -249,16 +265,15 @@ g                                       TGdiPlusGraphics
 brush                                   TGdiPlusSolidBrush
 x                                       SIGNED, AUTO
 y                                       SIGNED, AUTO
+numEntries                              UNSIGNED, AUTO
 i                                       LONG, AUTO
   CODE
-  !- number of frames
-  SELF.framesCount = RECORDS(SELF.framesData)
-  IF SELF.framesCount = 0
-    RETURN
-  END
+  SELF.GetClientRect(rc)
+
+  !- number of entries
+  numEntries = RECORDS(SELF.framesData)
   
   !- calc frame size (width = height*1.5)
-  SELF.GetClientRect(rc)
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
     SELF.frameSize.cx = rc.Width() - SELF.frameOutline.cx * 2
@@ -272,46 +287,78 @@ i                                       LONG, AUTO
   SELF.framesImage &= NEW TGdiPlusBitmap
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    SELF.framesImage.CreateBitmap(SELF.frameSize.cx + SELF.frameOutline.cx * 2, (SELF.frameSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy, SELF.pixelFormat)
+    SELF.framesActualSize.cx = SELF.frameSize.cx + SELF.frameOutline.cx * 2
+    SELF.framesActualSize.cy = (SELF.frameSize.cy + SELF.frameOutline.cy) * numEntries + SELF.frameOutline.cy
+    IF SELF.framesActualSize.cy < rc.Height()
+      SELF.framesActualSize.cy = rc.Height()
+    END
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    SELF.framesImage.CreateBitmap((SELF.frameSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx, SELF.frameSize.cy + SELF.frameOutline.cy * 2, SELF.pixelFormat)
+    SELF.framesActualSize.cx = (SELF.frameSize.cx + SELF.frameOutline.cx) * numEntries + SELF.frameOutline.cx
+    SELF.framesActualSize.cy = SELF.frameSize.cy + SELF.frameOutline.cy * 2
+    IF SELF.framesActualSize.cx < rc.Width()
+      SELF.framesActualSize.cx = rc.Width()
+    END
   END
+  SELF.framesImage.CreateBitmap(SELF.framesActualSize.cx, SELF.framesActualSize.cy, SELF.pixelFormat)
   g.FromImage(SELF.framesImage)
   
   !- erase background
   brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
-  g.FillRectangle(brush, 0, 0, SELF.framesImage.GetWidth(), SELF.framesImage.GetHeight())
+  g.FillRectangle(brush, 0, 0, SELF.framesActualSize.cx, SELF.framesActualSize.cy)
   brush.DeleteBrush()
   
-  !- loop thru all frames
+  !- loop thru all entries
+  SELF.framesCount = 0
   x = SELF.frameOutline.cx
   y = SELF.frameOutline.cy
-  LOOP i=1 TO SELF.framesCount
+  LOOP i=1 TO numEntries
     GET(SELF.framesData, i)
     !- create full image
-    frame.FromString(SELF.framesData.ImageData)
-    !- create thumbnail
-    frame.GetThumbnailImage(SELF.frameSize.cx, SELF.frameSize.cy, thumbnail)
-    !- append the thumbnail to combined image
-    g.DrawImage(thumbnail, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
-    !- clean up frame image and its thumbnail
-    frame.DisposeImage()
-    thumbnail.DisposeImage()
-    !- shift down/right
+    IF frame.FromString(SELF.framesData.ImageData) = GpStatus:Ok
+      !- count the images
+      SELF.framesCount += 1
+      
+      !- create thumbnail
+      frame.GetThumbnailImage(SELF.frameSize.cx, SELF.frameSize.cy, thumbnail)
+      !- append the thumbnail to combined image
+      g.DrawImage(thumbnail, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
+      !- clean up frame image and its thumbnail
+      frame.DisposeImage()
+      thumbnail.DisposeImage()
+      !- shift down/right
+      CASE SELF.orientation
+      OF IMGSEL_ORIENTATION_VERTICAL
+        y += SELF.frameSize.cy + SELF.frameOutline.cy
+      OF IMGSEL_ORIENTATION_HORIZONTAL
+        x += SELF.frameSize.cx + SELF.frameOutline.cx
+      END
+    ELSE
+      !- Notify a host that the entry is not an image
+      SELF.OnFrameRejected(SELF.framesData.Descr)
+    END
+  END
+  
+  IF SELF.framesCount < numEntries
+    !- if we allocated image size for non-image entries, reduce combined image szie
     CASE SELF.orientation
     OF IMGSEL_ORIENTATION_VERTICAL
-      y += SELF.frameSize.cy + SELF.frameOutline.cy
+      SELF.framesActualSize.cy = (SELF.frameSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy
     OF IMGSEL_ORIENTATION_HORIZONTAL
-      x += SELF.frameSize.cx + SELF.frameOutline.cx
+      SELF.framesActualSize.cx = (SELF.frameSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx
     END
   END
   
   !- select 1st frame
-  SELF.SelectFrame(1)
+  IF SELF.framesCount > 0
+    SELF.SelectFrame(1)
+  ELSE
+    !- Notify a host that no available images
+    SELF.OnFrameSelected(0)
+  END
   
   !- free data queue
   FREE(SELF.framesData)
-  
+
 TBaseImageSelector.RedrawFramesImage  PROCEDURE(TDC dc)
 g                                       TGdiPlusGraphics
 rc                                      TRect
@@ -330,16 +377,17 @@ srcRect                                 LIKE(GpRect)
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
     srcRect.x=0
-    srcRect.y=(SELF.framesImage.GetHeight() - rc.Height()) * SELF.scrollPos / 100
-    srcRect.width=SELF.framesImage.GetWidth()
-    srcRect.height=rc.Height()
+    srcRect.y=(SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / 100
+    srcRect.width=SELF.framesActualSize.cx
+    srcRect.height=destRect.height
+    
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    srcRect.x=(SELF.framesImage.GetWidth() - rc.Width()) * SELF.scrollPos / 100
+    srcRect.x=(SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / 100
     srcRect.y=0
-    srcRect.width=rc.Width()
-    srcRect.height=SELF.framesImage.GetHeight()
+    srcRect.width=destRect.width
+    srcRect.height=SELF.framesActualSize.cy
   END
-
+  
   g.DrawImage(SELF.framesImage, destRect, srcRect, UnitPixel)
   
 TBaseImageSelector.GetCurrentSelRect  PROCEDURE(*GpRectF pSelRect)
@@ -493,6 +541,8 @@ action                              USHORT, AUTO
   CODE
   distance = HIWORD(wParam)
   vKey = LOWORD(wParam)
+    
+  !- I know that SB_LINEUP and SB_LINELEFT have same value.
 
   IF distance
     CASE SELF.orientation
@@ -535,16 +585,16 @@ bFrameClicked                       BOOL(FALSE)
   !- check for outline clicked
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    pt.y += (SELF.framesImage.GetHeight() - rc.Height()) * SELF.scrollPos / 100
+    pt.y += (SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / 100
     n = (pt.y / (SELF.frameSize.cy + SELF.frameOutline.cy)) + 1
     bFrameClicked = CHOOSE(pt.y > ((n-1)*SELF.frameSize.cy + n*SELF.frameOutline.cy))
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    pt.x += (SELF.framesImage.GetWidth() - rc.Width()) * SELF.scrollPos / 100
+    pt.x += (SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / 100
     n = (pt.x / (SELF.frameSize.cx + SELF.frameOutline.cx)) + 1
     bFrameClicked = CHOOSE(pt.x > ((n-1)*SELF.frameSize.cx + n*SELF.frameOutline.cx))
   END
   
-  IF bFrameClicked
+  IF bFrameClicked AND n > 0 AND n <= SELF.framesCount
     IF SELF.currentFrame <> n
       SELF.SelectFrame(n)
       
@@ -563,7 +613,10 @@ bFrameClicked                       BOOL(FALSE)
 
 TBaseImageSelector.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
   CODE
-  
+    
+TBaseImageSelector.OnFrameRejected    PROCEDURE(STRING pFrameDescr)
+  CODE
+
 !!!endregion
 
 !!!region TVerticalImageSelector
