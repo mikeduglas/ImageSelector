@@ -8,21 +8,23 @@
 
 !!!<summary>Abstract class.</summary>
 TBaseImageSelector            CLASS(TWnd), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
-framesCount                     UNSIGNED, PROTECTED
-frameSize                       LIKE(SIZE), PROTECTED     !- size of each frame
-framesData                      &typImgSelFramesData, PROTECTED
-framesImage                     &TGdiPlusBitmap, PROTECTED
-framesActualSize                LIKE(SIZE), PROTECTED      !- size of full image
-frameOutline                    LIKE(SIZE), PROTECTED     !- default: 10x10
-scrollPos                       SIGNED, PROTECTED
-currentFrame                    UNSIGNED, PROTECTED
-bkColor                         LONG, PROTECTED           !- default: COLOR:White
-selColor                        LONG, PROTECTED           !- default: COLOR:Red
-selPenWidth                     UNSIGNED, PROTECTED       !- default: 3
-orientation                     UNSIGNED, PROTECTED       !- 1: vertical, 2: horizontal
-rAspectRatio                    SREAL, PROTECTED          !- frame_width/frame_height; default: 3/2
-pixelFormat                     GpPixelFormat, PROTECTED  !- default: PixelFormat24bppRGB
-scrollFactor                    UNSIGNED, PROTECTED       !- default: 3
+framesCount                     UNSIGNED, PROTECTED             !- number of frames
+frameSize                       LIKE(SIZE), PROTECTED           !- size of each frame
+framesData                      &typImgSelFramesData, PROTECTED !- a list of images ata
+framesImage                     &TGdiPlusBitmap, PROTECTED      !- combined image
+framesActualSize                LIKE(SIZE), PROTECTED           !- size of full image
+frameOutline                    LIKE(SIZE), PROTECTED           !- default: 10x10
+scrollPos                       SIGNED, PROTECTED               !- scroll position (0..100)
+currentFrame                    UNSIGNED, PROTECTED             !- selected frame index
+bkColor                         LONG, PROTECTED                 !- default: COLOR:White
+selColor                        LONG, PROTECTED                 !- default: COLOR:Red
+selPenWidth                     UNSIGNED, PROTECTED             !- default: 3
+orientation                     UNSIGNED, PROTECTED             !- 1: vertical, 2: horizontal
+rAspectRatio                    SREAL, PROTECTED                !- frame_width/frame_height; default: 3/2
+pixelFormat                     GpPixelFormat, PROTECTED        !- default: PixelFormat24bppRGB
+scrollFactor                    UNSIGNED, PROTECTED             !- default: 3
+bRetainOriginalAspectRatio      BOOL, PROTECTED                 !- retain original aspect ratio; default: false
+bCenterThumbnails               BOOL, PROTECTED                 !- if RetainOriginalAspectRatio is true, center thumbnails; default: false
 
 Construct                       PROCEDURE()
 Destruct                        PROCEDURE(), DERIVED
@@ -41,11 +43,15 @@ SetOutlineSize                  PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
 SetAspectRatio                  PROCEDURE(SREAL pAspectRatio)
 SetPixelFormat                  PROCEDURE(GpPixelFormat pFmt)
 SetScrollFactor                 PROCEDURE(UNSIGNED pFactor)
+RetainOriginalAspectRatio       PROCEDURE(BOOL pValue)
+CenterThumbnails                PROCEDURE(BOOL pValue)
 
 PrepareControl                  PROCEDURE(), PROTECTED, VIRTUAL
 CreateFramesImage               PROCEDURE(), PROTECTED, VIRTUAL
 RedrawFramesImage               PROCEDURE(TDC pDc), PROTECTED, VIRTUAL
 GetCurrentSelRect               PROCEDURE(*GpRectF pSelRect), PROTECTED, VIRTUAL
+CalcThumbnailSize               PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos), PROTECTED
+
 OnPaint                         PROCEDURE(), PROTECTED, VIRTUAL
 OnVScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnHScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL

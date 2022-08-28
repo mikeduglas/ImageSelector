@@ -110,6 +110,8 @@ TBaseImageSelector.Construct  PROCEDURE()
   SELF.scrollFactor = 3
   SELF.scrollPos = 0
   SELF.currentFrame = 0
+  SELF.bRetainOriginalAspectRatio = FALSE
+  SELF.bCenterThumbnails = FALSE
 
 TBaseImageSelector.Destruct   PROCEDURE()
   CODE
@@ -157,10 +159,8 @@ df                              TDiskFile
 sData                           &STRING
   CODE
   sData &= df.LoadFile(pFileName)
-  IF NOT sData &= NULL
-    SELF.AddRawData(sData, pDescr)
-    DISPOSE(sData)
-  END
+  SELF.AddRawData(sData, pDescr)
+  DISPOSE(sData)
   
 TBaseImageSelector.AddRawData PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
   CODE
@@ -254,6 +254,14 @@ TBaseImageSelector.SetScrollFactor    PROCEDURE(UNSIGNED pFactor)
     SELF.scrollFactor = 1
   END
   
+TBaseImageSelector.RetainOriginalAspectRatio  PROCEDURE(BOOL pValue)
+  CODE
+  SELF.bRetainOriginalAspectRatio = pValue
+  
+TBaseImageSelector.CenterThumbnails   PROCEDURE(BOOL pValue)
+  CODE
+  SELF.bCenterThumbnails = pValue
+  
 TBaseImageSelector.PrepareControl PROCEDURE()
   CODE
   
@@ -261,6 +269,8 @@ TBaseImageSelector.CreateFramesImage  PROCEDURE()
 rc                                      TRect
 frame                                   TGdiPlusImage
 thumbnail                               TGdiPlusImage
+thumbnailPos                            LIKE(POINT)
+thumbnailSize                           LIKE(SIZE)
 g                                       TGdiPlusGraphics
 brush                                   TGdiPlusSolidBrush
 x                                       SIGNED, AUTO
@@ -313,15 +323,30 @@ i                                       LONG, AUTO
   y = SELF.frameOutline.cy
   LOOP i=1 TO numEntries
     GET(SELF.framesData, i)
-    !- create full image
-    IF frame.FromString(SELF.framesData.ImageData) = GpStatus:Ok
+    !- create combined image.
+    !- ignore those frames with null or empty data.
+    IF NOT SELF.framesData.ImageData &= NULL AND LEN(SELF.framesData.ImageData) > 0 AND frame.FromString(SELF.framesData.ImageData) = GpStatus:Ok
       !- count the images
       SELF.framesCount += 1
       
       !- create thumbnail
-      frame.GetThumbnailImage(SELF.frameSize.cx, SELF.frameSize.cy, thumbnail)
+      IF NOT SELF.bRetainOriginalAspectRatio
+        !- make thumbnail equal to the frame
+        thumbnailSize = SELF.frameSize
+        thumbnailPos.x = x
+        thumbnailPos.y = y
+      ELSE
+        !- calculate thumbnail size to retain original aspect ratio
+        thumbnailPos.x = x
+        thumbnailPos.y = y
+        SELF.CalcThumbnailSize(frame, SELF.frameSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
+      END
+      frame.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
+!      thumbnail.Save(printf('.\tmpimages\%s', SELF.framesData.Descr))
+      
       !- append the thumbnail to combined image
-      g.DrawImage(thumbnail, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
+      g.DrawImage(thumbnail, thumbnailPos.x, thumbnailPos.y, thumbnailSize.cx, thumbnailSize.cy)
+      
       !- clean up frame image and its thumbnail
       frame.DisposeImage()
       thumbnail.DisposeImage()
@@ -406,6 +431,43 @@ TBaseImageSelector.GetCurrentSelRect  PROCEDURE(*GpRectF pSelRect)
   ELSE
     printd('TBaseImageSelector.CalcNewSelection failed: invalid orientation.')
   END
+  
+TBaseImageSelector.CalcThumbnailSize  PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos)
+rImageWidth                             REAL, AUTO
+rImageHeight                            REAL, AUTO
+rFrameWidth                             REAL, AUTO
+rFrameHeight                            REAL, AUTO
+rImageAspectRatio                       REAL, AUTO
+rFrameAspectRatio                       REAL, AUTO
+nNewWidth                               UNSIGNED, AUTO
+nNewHeight                              UNSIGNED, AUTO
+  CODE
+  rImageWidth = pImage.GetWidth()
+  rImageHeight = pImage.GetHeight()
+  rImageAspectRatio = rImageWidth / rImageHeight
+  
+  rFrameWidth = pFrameSize.cx
+  rFrameHeight = pFrameSize.cy
+  rFrameAspectRatio = rFrameWidth / rFrameHeight
+  
+  IF rImageAspectRatio > rFrameAspectRatio
+    nNewHeight = rFrameWidth / rImageWidth * rImageHeight
+    pThumbnailSize.cx = rFrameWidth
+    pThumbnailSize.cy = nNewHeight
+    IF pDoCenter
+      pThumbnailPos.y += (rFrameHeight - nNewHeight)/2
+    END
+  ELSIF rFrameAspectRatio > rImageAspectRatio
+    nNewWidth = rFrameHeight / rImageHeight * rImageWidth
+    pThumbnailSize.cx = nNewWidth
+    pThumbnailSize.cy = rFrameHeight
+    IF pDoCenter
+      pThumbnailPos.x += (rFrameWidth - nNewWidth)/2
+    END
+  ELSE
+    pThumbnailSize = pFrameSize
+  END
+
 
 TBaseImageSelector.OnPaint    PROCEDURE()
 dc                              TPaintDC

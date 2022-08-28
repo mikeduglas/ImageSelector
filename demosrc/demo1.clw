@@ -35,6 +35,10 @@ i                             LONG, AUTO
   !- Initialize image selector
   ThisImgSel.Init(?ImgSelector)
   
+  !- retain aspect ratios of original images
+!  ThisImgSel.RetainOriginalAspectRatio(TRUE)
+!  ThisImgSel.CenterThumbnails(TRUE)
+  
   !- Add all image files from \images folder to the selector
   imgFolder = '.\images'
   ReadDir(imgFolder)
@@ -59,16 +63,17 @@ ReadDir                       PROCEDURE(STRING pDir)
   CODE
   FREE(QDir)
   !- read all known image formats
-!  DIRECTORY(QDir, printf('%s\*.bmp', pDir), ff_:NORMAL)
-!  DIRECTORY(QDir, printf('%s\*.png', pDir), ff_:NORMAL)
-!  DIRECTORY(QDir, printf('%s\*.jpg', pDir), ff_:NORMAL)
-!  DIRECTORY(QDir, printf('%s\*.gif', pDir), ff_:NORMAL)
-!  DIRECTORY(QDir, printf('%s\*.wmf', pDir), ff_:NORMAL)
-!  DIRECTORY(QDir, printf('%s\*.emf', pDir), ff_:NORMAL)
-!  DIRECTORY(QDir, printf('%s\*.tif', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.bmp', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.png', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.jpg', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.gif', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.wmf', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.emf', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.tif', pDir), ff_:NORMAL)
+  DIRECTORY(QDir, printf('%s\*.ico', pDir), ff_:NORMAL)
   
   !- read all files, then remove non-images in OnFrameRejected handler.
-  DIRECTORY(QDir, printf('%s\*.*', pDir), ff_:NORMAL)
+!  DIRECTORY(QDir, printf('%s\*.*', pDir), ff_:NORMAL)
   LOOP i=1 TO RECORDS(QDir)
     GET(QDir, i)
     ThisImgSel.AddFile(printf('%s\%s', pDir, QDir.Name), QDir.Name)
