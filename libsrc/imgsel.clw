@@ -112,7 +112,8 @@ TBaseImageSelector.Construct  PROCEDURE()
   SELF.currentFrame = 0
   SELF.bRetainOriginalAspectRatio = FALSE
   SELF.bCenterThumbnails = FALSE
-
+  SELF.frameBkColor = COLOR:NONE
+  
 TBaseImageSelector.Destruct   PROCEDURE()
   CODE
   SELF.Kill()
@@ -230,6 +231,18 @@ TBaseImageSelector.SetSelColor    PROCEDURE(LONG pSelColor)
   CODE
   SELF.selColor = pSelColor
   
+TBaseImageSelector.SetFrameBackColor  PROCEDURE(LONG pBackColor)
+  CODE
+  IF pBackColor <> COLOR:NONE
+    IF BAND(pBackColor, 80000000h)
+      SELF.frameBkColor = winapi::GetSysColor(BAND(pBackColor, 0ffffh))
+    ELSE
+      SELF.frameBkColor = pBackColor
+    END
+  ELSE
+    SELF.frameBkColor = COLOR:NONE
+  END
+
 TBaseImageSelector.SetSelPenWidth PROCEDURE(UNSIGNED pPenWidth)
   CODE
   SELF.selPenWidth = pPenWidth
@@ -273,6 +286,7 @@ thumbnailPos                            LIKE(POINT)
 thumbnailSize                           LIKE(SIZE)
 g                                       TGdiPlusGraphics
 brush                                   TGdiPlusSolidBrush
+frameBrush                              TGdiPlusSolidBrush
 x                                       SIGNED, AUTO
 y                                       SIGNED, AUTO
 numEntries                              UNSIGNED, AUTO
@@ -317,6 +331,10 @@ i                                       LONG, AUTO
   g.FillRectangle(brush, 0, 0, SELF.framesActualSize.cx, SELF.framesActualSize.cy)
   brush.DeleteBrush()
   
+  IF SELF.frameBkColor <> COLOR:NONE
+    frameBrush.CreateSolidBrush(GdipMakeARGB(SELF.frameBkColor))
+  END
+  
   !- loop thru all entries
   SELF.framesCount = 0
   x = SELF.frameOutline.cx
@@ -343,6 +361,11 @@ i                                       LONG, AUTO
       END
       frame.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
 !      thumbnail.Save(printf('.\tmpimages\%s', SELF.framesData.Descr))
+      
+      !- frame bacjkground
+      IF SELF.frameBkColor <> COLOR:NONE
+        g.FillRectangle(frameBrush, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
+      END
       
       !- append the thumbnail to combined image
       g.DrawImage(thumbnail, thumbnailPos.x, thumbnailPos.y, thumbnailSize.cx, thumbnailSize.cy)

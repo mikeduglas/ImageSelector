@@ -16,9 +16,10 @@ framesActualSize                LIKE(SIZE), PROTECTED           !- size of full 
 frameOutline                    LIKE(SIZE), PROTECTED           !- default: 10x10
 scrollPos                       SIGNED, PROTECTED               !- scroll position (0..100)
 currentFrame                    UNSIGNED, PROTECTED             !- selected frame index
-bkColor                         LONG, PROTECTED                 !- default: COLOR:White
-selColor                        LONG, PROTECTED                 !- default: COLOR:Red
-selPenWidth                     UNSIGNED, PROTECTED             !- default: 3
+bkColor                         LONG, PROTECTED                 !- combined image background; default: COLOR:White
+selColor                        LONG, PROTECTED                 !- selection color; default: COLOR:Red
+frameBkColor                    LONG, PROTECTED                 !- frame background; default: COLOR:None
+selPenWidth                     UNSIGNED, PROTECTED             !- selection pen width; default: 3
 orientation                     UNSIGNED, PROTECTED             !- 1: vertical, 2: horizontal
 rAspectRatio                    SREAL, PROTECTED                !- frame_width/frame_height; default: 3/2
 pixelFormat                     GpPixelFormat, PROTECTED        !- default: PixelFormat24bppRGB
@@ -38,6 +39,7 @@ AddRawData                      PROCEDURE(CONST *STRING pRawData, <STRING pDescr
 SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex), VIRTUAL
 SetBackColor                    PROCEDURE(LONG pBackColor)
 SetSelColor                     PROCEDURE(LONG pSelColor)
+SetFrameBackColor               PROCEDURE(LONG pBackColor)
 SetSelPenWidth                  PROCEDURE(UNSIGNED pPenWidth)
 SetOutlineSize                  PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
 SetAspectRatio                  PROCEDURE(SREAL pAspectRatio)

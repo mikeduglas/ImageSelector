@@ -1,3 +1,6 @@
+29.08.2022
+- Added frame backcolor property.
+
 28.08.2022
 - New options for thumbnails: 1) retain image aspect ratio, and 2) center thumbnail.
 - Fixed a bug occuring when empty or not existing file was passed to AddFile().
