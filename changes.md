@@ -1,5 +1,40 @@
 29.08.2022
-- Added frame backcolor property.
+- New SetFrameBackColor property.
+- New EnsureVisible method: ensures that the specified frame is visible within the control, scrolling the contents of the control if necessary.
+- Fixed SelectFrame: it did not update frame selection.
+- New NumberOfFrames method returns a number of frames in the control.
+- New GetSelectedIndex property returns an index of selected frame.
+
+An example of scrolling up and down:
+```
+R::ScrollDown                 ROUTINE
+  DATA
+frameIndex  UNSIGNED, AUTO
+  CODE
+  frameIndex = ThisImgSel.GetSelectedIndex()
+  frameIndex += 1
+  IF frameIndex > ThisImgSel.NumberOfFrames()
+    frameIndex = 1
+  END
+  
+  ThisImgSel.EnsureVisible(frameIndex)
+  ThisImgSel.SelectFrame(frameIndex)
+    
+R::ScrollUp                   ROUTINE
+  DATA
+frameIndex  UNSIGNED, AUTO
+  CODE
+  frameIndex = ThisImgSel.GetSelectedIndex()
+  frameIndex -= 1
+  IF frameIndex = 0
+    frameIndex = ThisImgSel.NumberOfFrames()
+  END
+  
+  ThisImgSel.EnsureVisible(frameIndex)
+  ThisImgSel.SelectFrame(frameIndex)
+```
+
+
 
 28.08.2022
 - New options for thumbnails: 1) retain image aspect ratio, and 2) center thumbnail.

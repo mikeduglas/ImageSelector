@@ -175,6 +175,7 @@ TBaseImageSelector.AddRawData PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
   ADD(SELF.framesData)
   
 TBaseImageSelector.SelectFrame    PROCEDURE(UNSIGNED pFrameIndex)
+dc                                  TDC
 g                                   TGdiPlusGraphics
 pen                                 TGdiPlusPen
 selRect                             LIKE(GpRectF)
@@ -207,10 +208,53 @@ selRect                             LIKE(GpRectF)
 
     g.DeleteGraphics()
     
+    !- redraw the control
+    dc.GetDC(SELF)
+    SELF.RedrawFramesImage(dc)
+    dc.ReleaseDC()
+
     !- Notify a host
     SELF.OnFrameSelected(SELF.currentFrame)
   END
   
+TBaseImageSelector.EnsureVisible  PROCEDURE(UNSIGNED pFrameIndex)
+rcClient                            TRect
+rcVisible                           TRect
+rcFrame                             TRect
+rcHalfFrame                         TRect
+scrollPos                           UNSIGNED, AUTO
+dc                                  TDC
+  CODE
+  IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
+    RETURN
+  END
+  
+  SELF.GetClientRect(rcClient)
+  
+  rcVisible.left = SELF.visibleRect.x
+  rcVisible.top = SELF.visibleRect.y
+  rcVisible.Width(SELF.visibleRect.width)
+  rcVisible.Height(SELF.visibleRect.height)
+  
+  SELF.GetFrameRect(pFrameIndex, rcFrame)
+  
+  !- allow a half of frame to be visible
+  rcHalfFrame.Assign(rcFrame)
+  rcHalfFrame.InflateRect(-rcFrame.Width()/2, -rcFrame.Height()/2)
+  IF rcHalfFrame.Intersect(rcVisible)
+    RETURN
+  END
+
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    scrollPos = rcFrame.top / SELF.framesActualSize.cy * 100
+    SELF.SendMessage(WM_VSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    scrollPos = rcFrame.left / SELF.framesActualSize.cx * 100
+    SELF.SendMessage(WM_HSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
+  END
+
+
 TBaseImageSelector.SetBackColor   PROCEDURE(LONG pBackColor)
   CODE
   IF pBackColor <> COLOR:NONE
@@ -275,6 +319,39 @@ TBaseImageSelector.CenterThumbnails   PROCEDURE(BOOL pValue)
   CODE
   SELF.bCenterThumbnails = pValue
   
+TBaseImageSelector.NumberOfFrames PROCEDURE()
+  CODE
+  RETURN SELF.framesCount
+  
+TBaseImageSelector.NumberOfVisibleFrames  PROCEDURE()
+rc                                          TRect
+frameWidth                                  SREAL, AUTO
+frameHeight                                 SREAL, AUTO
+quotient                                    SREAL(0)
+  CODE
+  SELF.GetClientRect(rc)
+  frameWidth = SELF.frameSize.cx + SELF.frameOutline.cx*2
+  frameHeight = SELF.frameSize.cy + SELF.frameOutline.cy*2
+  
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    quotient = rc.Height() / frameHeight
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    quotient = rc.Width() / frameWidth
+  ELSE
+    RETURN 0
+  END
+  
+  IF SELF.framesCount >= quotient
+    RETURN INT(quotient)+1
+  ELSE
+    RETURN SELF.framesCount
+  END
+  
+TBaseImageSelector.GetSelectedIndex   PROCEDURE()
+  CODE
+  RETURN SELF.currentFrame
+  
 TBaseImageSelector.PrepareControl PROCEDURE()
   CODE
   
@@ -287,6 +364,7 @@ thumbnailSize                           LIKE(SIZE)
 g                                       TGdiPlusGraphics
 brush                                   TGdiPlusSolidBrush
 frameBrush                              TGdiPlusSolidBrush
+bFillFrameBackground                    BOOL(FALSE)
 x                                       SIGNED, AUTO
 y                                       SIGNED, AUTO
 numEntries                              UNSIGNED, AUTO
@@ -331,7 +409,8 @@ i                                       LONG, AUTO
   g.FillRectangle(brush, 0, 0, SELF.framesActualSize.cx, SELF.framesActualSize.cy)
   brush.DeleteBrush()
   
-  IF SELF.frameBkColor <> COLOR:NONE
+  IF SELF.bRetainOriginalAspectRatio AND SELF.frameBkColor <> COLOR:NONE
+    bFillFrameBackground = TRUE
     frameBrush.CreateSolidBrush(GdipMakeARGB(SELF.frameBkColor))
   END
   
@@ -363,7 +442,7 @@ i                                       LONG, AUTO
 !      thumbnail.Save(printf('.\tmpimages\%s', SELF.framesData.Descr))
       
       !- frame bacjkground
-      IF SELF.frameBkColor <> COLOR:NONE
+      IF bFillFrameBackground AND SELF.frameBkColor <> COLOR:NONE
         g.FillRectangle(frameBrush, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
       END
       
@@ -438,22 +517,34 @@ srcRect                                 LIKE(GpRect)
   
   g.DrawImage(SELF.framesImage, destRect, srcRect, UnitPixel)
   
+  SELF.visibleRect = srcRect
+  
 TBaseImageSelector.GetCurrentSelRect  PROCEDURE(*GpRectF pSelRect)
+  CODE
+  SELF.GetFrameRect(SELF.currentFrame, pSelRect)
+  
+TBaseImageSelector.GetFrameRect   PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pFrameRect)
   CODE
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    pSelRect.x = SELF.frameOutline.cx-SELF.selPenWidth/2
-    pSelRect.y = SELF.frameOutline.cy + (SELF.currentFrame-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
-    pSelRect.width = SELF.frameSize.cx+SELF.selPenWidth
-    pSelRect.height = SELF.frameSize.cy+SELF.selPenWidth
+    pFrameRect.x = SELF.frameOutline.cx-SELF.selPenWidth/2
+    pFrameRect.y = SELF.frameOutline.cy + (pFrameIndex-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
+    pFrameRect.width = SELF.frameSize.cx+SELF.selPenWidth
+    pFrameRect.height = SELF.frameSize.cy+SELF.selPenWidth
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    pSelRect.x = SELF.frameOutline.cx + (SELF.currentFrame-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
-    pSelRect.y = SELF.frameOutline.cy-SELF.selPenWidth/2
-    pSelRect.width = SELF.frameSize.cx+SELF.selPenWidth
-    pSelRect.height = SELF.frameSize.cy+SELF.selPenWidth
+    pFrameRect.x = SELF.frameOutline.cx + (pFrameIndex-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
+    pFrameRect.y = SELF.frameOutline.cy-SELF.selPenWidth/2
+    pFrameRect.width = SELF.frameSize.cx+SELF.selPenWidth
+    pFrameRect.height = SELF.frameSize.cy+SELF.selPenWidth
   ELSE
-    printd('TBaseImageSelector.CalcNewSelection failed: invalid orientation.')
+    printd('TBaseImageSelector.GetFrameRect(%i) failed: invalid orientation.', pFrameIndex)
   END
+
+TBaseImageSelector.GetFrameRect   PROCEDURE(UNSIGNED pFrameIndex, *TRect pFrameRect)
+rc                                  LIKE(GpRectF)
+  CODE
+  SELF.GetFrameRect(pFrameIndex, rc)
+  pFrameRect.Assign(rc.x, rc.y, rc.x+rc.width, rc.y+rc.height)
   
 TBaseImageSelector.CalcThumbnailSize  PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos)
 rImageWidth                             REAL, AUTO
@@ -653,7 +744,6 @@ action                              USHORT, AUTO
   RETURN TRUE
 
 TBaseImageSelector.OnLButtonDown  PROCEDURE(UNSIGNED wParam, LONG lParam)
-dc                                  TDC
 pt                                  LIKE(POINT)
 rc                                  TRect
 n                                   LONG(0)
@@ -682,11 +772,6 @@ bFrameClicked                       BOOL(FALSE)
   IF bFrameClicked AND n > 0 AND n <= SELF.framesCount
     IF SELF.currentFrame <> n
       SELF.SelectFrame(n)
-      
-      !- redraw the control
-      dc.GetDC(SELF)
-      SELF.RedrawFramesImage(dc)
-      dc.ReleaseDC()
       
       !- don't call default handler DefSubclassProc
       RETURN FALSE

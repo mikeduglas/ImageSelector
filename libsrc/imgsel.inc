@@ -26,6 +26,7 @@ pixelFormat                     GpPixelFormat, PROTECTED        !- default: Pixe
 scrollFactor                    UNSIGNED, PROTECTED             !- default: 3
 bRetainOriginalAspectRatio      BOOL, PROTECTED                 !- retain original aspect ratio; default: false
 bCenterThumbnails               BOOL, PROTECTED                 !- if RetainOriginalAspectRatio is true, center thumbnails; default: false
+visibleRect                     LIKE(GpRect), PROTECTED         !- part of combined image currenty visible
 
 Construct                       PROCEDURE()
 Destruct                        PROCEDURE(), DERIVED
@@ -37,6 +38,7 @@ AddFile                         PROCEDURE(STRING pFileName, <STRING pDescr>)
 !AddBlob                         PROCEDURE(BLOB pBlob, <STRING pDescr>)
 AddRawData                      PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
 SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex), VIRTUAL
+EnsureVisible                   PROCEDURE(UNSIGNED pFrameIndex), VIRTUAL
 SetBackColor                    PROCEDURE(LONG pBackColor)
 SetSelColor                     PROCEDURE(LONG pSelColor)
 SetFrameBackColor               PROCEDURE(LONG pBackColor)
@@ -47,11 +49,16 @@ SetPixelFormat                  PROCEDURE(GpPixelFormat pFmt)
 SetScrollFactor                 PROCEDURE(UNSIGNED pFactor)
 RetainOriginalAspectRatio       PROCEDURE(BOOL pValue)
 CenterThumbnails                PROCEDURE(BOOL pValue)
+NumberOfFrames                  PROCEDURE(), UNSIGNED
+NumberOfVisibleFrames           PROCEDURE(), UNSIGNED
+GetSelectedIndex                PROCEDURE(), UNSIGNED
 
 PrepareControl                  PROCEDURE(), PROTECTED, VIRTUAL
 CreateFramesImage               PROCEDURE(), PROTECTED, VIRTUAL
 RedrawFramesImage               PROCEDURE(TDC pDc), PROTECTED, VIRTUAL
 GetCurrentSelRect               PROCEDURE(*GpRectF pSelRect), PROTECTED, VIRTUAL
+GetFrameRect                    PROCEDURE(UNSIGNED pFrameIndex, *TRect pFrameRect), PROTECTED, VIRTUAL
+GetFrameRect                    PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pFrameRect), PROTECTED, VIRTUAL
 CalcThumbnailSize               PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos), PROTECTED
 
 OnPaint                         PROCEDURE(), PROTECTED, VIRTUAL
