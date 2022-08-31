@@ -9,7 +9,7 @@
 !!!<summary>Abstract class.</summary>
 TBaseImageSelector            CLASS(TWnd), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
 framesCount                     UNSIGNED, PROTECTED             !- number of frames
-frameSize                       LIKE(SIZE), PROTECTED           !- size of each frame
+thumbnailSize                   LIKE(SIZE), PROTECTED           !- size of each thumbnail
 framesData                      &typImgSelFramesData, PROTECTED !- a list of images ata
 framesImage                     &TGdiPlusBitmap, PROTECTED      !- combined image
 framesActualSize                LIKE(SIZE), PROTECTED           !- size of full image
@@ -37,7 +37,7 @@ Refresh                         PROCEDURE()
 AddFile                         PROCEDURE(STRING pFileName, <STRING pDescr>)
 !AddBlob                         PROCEDURE(BLOB pBlob, <STRING pDescr>)
 AddRawData                      PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
-SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex), VIRTUAL
+SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex, BOOL pForce=FALSE), VIRTUAL
 EnsureVisible                   PROCEDURE(UNSIGNED pFrameIndex), VIRTUAL
 SetBackColor                    PROCEDURE(LONG pBackColor)
 SetSelColor                     PROCEDURE(LONG pSelColor)
@@ -52,14 +52,18 @@ CenterThumbnails                PROCEDURE(BOOL pValue)
 NumberOfFrames                  PROCEDURE(), UNSIGNED
 NumberOfVisibleFrames           PROCEDURE(), UNSIGNED
 GetSelectedIndex                PROCEDURE(), UNSIGNED
+UpdateFrameFromRawData          PROCEDURE(UNSIGNED pFrameIndex, CONST *STRING pRawData)
+UpdateFrame                     PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName)
+DeleteFrame                     PROCEDURE(UNSIGNED pFrameIndex)
 
 PrepareControl                  PROCEDURE(), PROTECTED, VIRTUAL
 CreateFramesImage               PROCEDURE(), PROTECTED, VIRTUAL
 RedrawFramesImage               PROCEDURE(TDC pDc), PROTECTED, VIRTUAL
 GetCurrentSelRect               PROCEDURE(*GpRectF pSelRect), PROTECTED, VIRTUAL
-GetFrameRect                    PROCEDURE(UNSIGNED pFrameIndex, *TRect pFrameRect), PROTECTED, VIRTUAL
-GetFrameRect                    PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pFrameRect), PROTECTED, VIRTUAL
+GetSelRect                      PROCEDURE(UNSIGNED pFrameIndex, *TRect pSelRect), PROTECTED, VIRTUAL
+GetSelRect                      PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pSelRect), PROTECTED, VIRTUAL
 CalcThumbnailSize               PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos), PROTECTED
+DrawSelection                   PROCEDURE(TGdiPlusGraphics pGrahpics, UNSIGNED pFrameIndex, LONG pColor), PROTECTED
 
 OnPaint                         PROCEDURE(), PROTECTED, VIRTUAL
 OnVScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
@@ -68,6 +72,7 @@ OnMouseWheel                    PROCEDURE(UNSIGNED wParam), BOOL, PROTECTED, VIR
 OnLButtonDown                   PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnFrameSelected                 PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, VIRTUAL
 OnFrameRejected                 PROCEDURE(STRING pFrameDescr), PROTECTED, VIRTUAL
+OnFrameDeleted                  PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, VIRTUAL
                               END
 
 

@@ -1,3 +1,7 @@
+31.08.2022
+- New methods UpdateFrame, DeleteFrame.
+- demo1.clw demonstrates a usage of new features.
+
 29.08.2022
 - New SetFrameBackColor property.
 - New EnsureVisible method: ensures that the specified frame is visible within the control, scrolling the contents of the control if necessary.

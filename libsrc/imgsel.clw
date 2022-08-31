@@ -174,36 +174,20 @@ TBaseImageSelector.AddRawData PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
   SELF.framesData.ImageData = CLIP(pRawData)
   ADD(SELF.framesData)
   
-TBaseImageSelector.SelectFrame    PROCEDURE(UNSIGNED pFrameIndex)
+TBaseImageSelector.SelectFrame    PROCEDURE(UNSIGNED pFrameIndex, BOOL pForce=FALSE)
 dc                                  TDC
 g                                   TGdiPlusGraphics
-pen                                 TGdiPlusPen
-selRect                             LIKE(GpRectF)
   CODE
-  IF (NOT SELF.framesImage &= NULL) AND SELF.currentFrame <> pFrameIndex
+  IF (NOT SELF.framesImage &= NULL) AND (pForce OR SELF.currentFrame <> pFrameIndex)
     g.FromImage(SELF.framesImage)
-      
-    !- selection rect
-    SELF.GetCurrentSelRect(selRect)
     
     !- erase previous selection
-    pen.CreatePen(GdipMakeARGB(SELF.bkColor), SELF.selPenWidth)
-    g.DrawRectangle(pen, selRect)
-    pen.DeletePen()
- 
+    SELF.DrawSelection(g, SELF.currentFrame, SELF.bkColor)
+    
     !- draw new selection
     SELF.currentFrame = pFrameIndex
     IF SELF.currentFrame > 0 AND SELF.currentFrame <= SELF.framesCount
-      CASE SELF.orientation
-      OF IMGSEL_ORIENTATION_VERTICAL
-        selRect.y = SELF.frameOutline.cy + (SELF.currentFrame-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
-      OF IMGSEL_ORIENTATION_HORIZONTAL
-        selRect.x = SELF.frameOutline.cx + (SELF.currentFrame-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
-      END
-      
-      pen.CreatePen(GdipMakeARGB(SELF.selColor), SELF.selPenWidth)
-      g.DrawRectangle(pen, selRect)
-      pen.DeletePen()
+      SELF.DrawSelection(g, SELF.currentFrame, SELF.selColor)
     END
 
     g.DeleteGraphics()
@@ -220,7 +204,7 @@ selRect                             LIKE(GpRectF)
 TBaseImageSelector.EnsureVisible  PROCEDURE(UNSIGNED pFrameIndex)
 rcClient                            TRect
 rcVisible                           TRect
-rcFrame                             TRect
+rcSelection                         TRect
 rcHalfFrame                         TRect
 scrollPos                           UNSIGNED, AUTO
 dc                                  TDC
@@ -236,21 +220,21 @@ dc                                  TDC
   rcVisible.Width(SELF.visibleRect.width)
   rcVisible.Height(SELF.visibleRect.height)
   
-  SELF.GetFrameRect(pFrameIndex, rcFrame)
+  SELF.GetSelRect(pFrameIndex, rcSelection)
   
   !- allow a half of frame to be visible
-  rcHalfFrame.Assign(rcFrame)
-  rcHalfFrame.InflateRect(-rcFrame.Width()/2, -rcFrame.Height()/2)
+  rcHalfFrame.Assign(rcSelection)
+  rcHalfFrame.InflateRect(-rcSelection.Width()/2, -rcSelection.Height()/2)
   IF rcHalfFrame.Intersect(rcVisible)
     RETURN
   END
 
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    scrollPos = rcFrame.top / SELF.framesActualSize.cy * 100
+    scrollPos = rcSelection.top / SELF.framesActualSize.cy * 100
     SELF.SendMessage(WM_VSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    scrollPos = rcFrame.left / SELF.framesActualSize.cx * 100
+    scrollPos = rcSelection.left / SELF.framesActualSize.cx * 100
     SELF.SendMessage(WM_HSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
   END
 
@@ -330,8 +314,8 @@ frameHeight                                 SREAL, AUTO
 quotient                                    SREAL(0)
   CODE
   SELF.GetClientRect(rc)
-  frameWidth = SELF.frameSize.cx + SELF.frameOutline.cx*2
-  frameHeight = SELF.frameSize.cy + SELF.frameOutline.cy*2
+  frameWidth = SELF.thumbnailSize.cx + SELF.frameOutline.cx*2
+  frameHeight = SELF.thumbnailSize.cy + SELF.frameOutline.cy*2
   
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
@@ -351,6 +335,294 @@ quotient                                    SREAL(0)
 TBaseImageSelector.GetSelectedIndex   PROCEDURE()
   CODE
   RETURN SELF.currentFrame
+  
+TBaseImageSelector.UpdateFrameFromRawData PROCEDURE(UNSIGNED pFrameIndex, CONST *STRING pRawData)
+image                                       TGdiPlusImage
+thumbnail                                   TGdiPlusImage
+frameWidth                                  UNSIGNED, AUTO
+frameHeight                                 UNSIGNED, AUTO
+bmpNew                                      &TGdiPlusBitmap
+g                                           TGdiPlusGraphics
+brush                                       TGdiPlusSolidBrush
+bmpSize                                     LIKE(SIZE)      !- current size of combined image
+srcUnit                                     GpUnit
+srcRect                                     LIKE(GpRect)      !- rect to copy from
+dstRect                                     LIKE(GpRect)      !- rect to copy to
+  CODE
+  IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
+    printd('TBaseImageSelector.UpdateFrameFromRawData(%i) failed: index out of range.', pFrameIndex)
+    RETURN
+  END
+  
+  IF image.FromString(pRawData) <> GpStatus:Ok
+    printd('TBaseImageSelector.UpdateFrameFromRawData(%i) failed: unable to create an image..', pFrameIndex)
+    image.DisposeImage()
+    RETURN
+  END
+
+  !- erase previous selection
+  g.FromImage(SELF.framesImage)
+  SELF.DrawSelection(g, SELF.currentFrame, SELF.bkColor)
+  g.DeleteGraphics()
+
+  frameWidth = SELF.thumbnailSize.cx + SELF.frameOutline.cx
+  frameHeight = SELF.thumbnailSize.cy + SELF.frameOutline.cy
+
+  !- current bitmap size
+  bmpSize.cx = SELF.framesActualSize.cx
+  bmpSize.cy = SELF.framesActualSize.cy
+
+  !- create new bitmap
+  bmpNew &= NEW TGdiPlusBitmap
+  bmpNew.CreateBitmap(bmpSize.cx, bmpSize.cy, SELF.pixelFormat)
+  
+  !- draw on bmpNew
+  g.FromImage(bmpNew)
+    
+  !- erase background
+  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
+  g.FillRectangle(brush, 0, 0, bmpSize.cx, bmpSize.cy)
+  brush.DeleteBrush()
+
+  !- copy the image above (or to the left of) deleting frame
+  IF pFrameIndex > 1
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      srcRect.x = 0
+      srcRect.y = 0
+      srcRect.width = bmpSize.cx
+      srcRect.height = (pFrameIndex-1) * frameHeight
+    
+      dstRect = srcRect
+    
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      srcRect.x = 0
+      srcRect.y = 0
+      srcRect.width = (pFrameIndex-1) * frameWidth
+      srcRect.height = bmpSize.cy
+    
+      dstRect = srcRect
+    END
+
+    g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
+  END
+  
+  !- replace a thumbnail
+  image.GetThumbnailImage(SELF.thumbnailSize.cx, SELF.thumbnailSize.cy, thumbnail)
+
+  srcRect.x = 0
+  srcRect.y = 0
+  srcRect.width = SELF.thumbnailSize.cx
+  srcRect.height = SELF.thumbnailSize.cy
+
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    dstRect.x = SELF.frameOutline.cx
+    dstRect.y = SELF.frameOutline.cy + (pFrameIndex-1) * (SELF.thumbnailSize.cy+SELF.frameOutline.cy)
+    dstRect.width = SELF.thumbnailSize.cx
+    dstRect.height = SELF.thumbnailSize.cy
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    dstRect.x = SELF.frameOutline.cx + (pFrameIndex-1) * (SELF.thumbnailSize.cx+SELF.frameOutline.cx)
+    dstRect.y = SELF.frameOutline.cy
+    dstRect.width = SELF.thumbnailSize.cx
+    dstRect.height = SELF.thumbnailSize.cy
+  END
+  g.DrawImage(thumbnail, dstRect, srcRect, UnitPixel)
+  thumbnail.DisposeImage()
+  image.DisposeImage()
+  
+  !- copy the image below (or to the right of) updating frame
+  IF pFrameIndex < SELF.framesCount
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      srcRect.x = 0
+      srcRect.y = pFrameIndex * frameHeight
+      srcRect.width = bmpSize.cx
+      srcRect.height = (SELF.framesCount - pFrameIndex) * frameHeight
+    
+      dstRect = srcRect
+
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      srcRect.x = pFrameIndex * frameWidth
+      srcRect.y = 0
+      srcRect.width = (SELF.framesCount - pFrameIndex) * frameWidth
+      srcRect.height = bmpSize.cy
+    
+      dstRect = srcRect
+    END
+      
+    g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
+  END
+
+  !- replace old bitmap with new one
+  SELF.framesImage.DisposeImage()
+  SELF.framesImage &= bmpNew
+  
+  !- clean up
+  g.DeleteGraphics()
+  
+  !- refresh
+  SELF.SelectFrame(SELF.currentFrame, TRUE)
+  
+TBaseImageSelector.UpdateFrame    PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName)
+df                                  TDiskFile
+sData                               &STRING
+  CODE
+  sData &= df.LoadFile(pFileName)
+  SELF.UpdateFrameFromRawData(pFrameIndex, sData)
+  DISPOSE(sData)
+  
+TBaseImageSelector.DeleteFrame    PROCEDURE(UNSIGNED pFrameIndex)
+frameWidth                          UNSIGNED, AUTO
+frameHeight                         UNSIGNED, AUTO
+bmpNew                              &TGdiPlusBitmap
+g                                   TGdiPlusGraphics
+brush                               TGdiPlusSolidBrush
+bmpSize                             LIKE(SIZE)      !- current size of combined image
+srcUnit                             GpUnit
+srcRect                             LIKE(GpRect)      !- rect to copy from
+dstRect                             LIKE(GpRect)      !- rect to copy to
+selIndex                            UNSIGNED, AUTO
+rc                                  TRect
+  CODE
+  IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
+    printd('TBaseImageSelector.DeleteFrame(%i) failed: index out of range.', pFrameIndex)
+    RETURN
+  END
+      
+  SELF.GetClientRect(rc)
+
+  !- erase previous selection
+  g.FromImage(SELF.framesImage)
+  SELF.DrawSelection(g, SELF.currentFrame, SELF.bkColor)
+  g.DeleteGraphics()
+
+  frameWidth = SELF.thumbnailSize.cx + SELF.frameOutline.cx
+  frameHeight = SELF.thumbnailSize.cy + SELF.frameOutline.cy
+
+  !- current bitmap size
+  bmpSize.cx = SELF.framesActualSize.cx
+  bmpSize.cy = SELF.framesActualSize.cy
+
+  !- reduce the size of deleting frame
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    bmpSize.cy -= frameHeight
+    IF bmpSize.cy < rc.Height()
+      bmpSize.cy = rc.Height()
+    END
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    bmpSize.cx -= frameWidth
+    IF bmpSize.cx < rc.Width()
+      bmpSize.cx = rc.Width()
+    END
+  END
+
+  !- create new bitmap
+  bmpNew &= NEW TGdiPlusBitmap
+  bmpNew.CreateBitmap(bmpSize.cx, bmpSize.cy, SELF.pixelFormat)
+  
+  !- draw on bmpNew
+  g.FromImage(bmpNew)
+    
+  !- erase background
+  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
+  g.FillRectangle(brush, 0, 0, bmpSize.cx, bmpSize.cy)
+  brush.DeleteBrush()
+
+  !- copy the image above (or to the left of) deleting frame
+  IF pFrameIndex > 1
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      srcRect.x = 0
+      srcRect.y = 0
+      srcRect.width = bmpSize.cx
+      srcRect.height = (pFrameIndex-1) * frameHeight
+    
+      dstRect = srcRect
+    
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      srcRect.x = 0
+      srcRect.y = 0
+      srcRect.width = (pFrameIndex-1) * frameWidth
+      srcRect.height = bmpSize.cy
+    
+      dstRect = srcRect
+    END
+
+    g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
+  END
+
+  !- copy the image below (or to the right of) deleting frame
+  IF pFrameIndex < SELF.framesCount
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      srcRect.x = 0
+      srcRect.y = pFrameIndex * frameHeight
+      srcRect.width = bmpSize.cx
+      srcRect.height = (SELF.framesCount - pFrameIndex) * frameHeight
+    
+      dstRect = srcRect
+      dstRect.y -= frameHeight
+
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      srcRect.x = pFrameIndex * frameWidth
+      srcRect.y = 0
+      srcRect.width = (SELF.framesCount - pFrameIndex) * frameWidth
+      srcRect.height = bmpSize.cy
+    
+      dstRect = srcRect
+      dstRect.x -= frameWidth
+    END
+      
+    g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
+  END
+  
+  !- replace old bitmap with new one
+  SELF.framesImage.DisposeImage()
+  SELF.framesImage &= bmpNew
+  
+  !- clean up
+  g.DeleteGraphics()
+  
+  !- update the selection
+  IF pFrameIndex < SELF.currentFrame
+    !- deleted frame is above selection
+    selIndex = SELF.currentFrame-1
+  ELSIF pFrameIndex > SELF.currentFrame
+    !- deleted frame is below selection
+    selIndex = SELF.currentFrame
+  ELSE
+    !- deleted frame is selected frame
+    IF SELF.currentFrame = SELF.framesCount
+      !- last frame selected
+      selIndex = SELF.currentFrame-1      
+    ELSE
+      !- not last frame selected: retain selection
+      selIndex = SELF.currentFrame
+    END
+  END
+
+  !- change some properties
+  SELF.framesCount -= 1
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    SELF.framesActualSize.cy -= frameHeight
+    IF SELF.framesActualSize.cy < rc.Height()
+      SELF.framesActualSize.cy = rc.Height()
+    END
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    SELF.framesActualSize.cx -= frameWidth
+    IF SELF.framesActualSize.cx < rc.Height()
+      SELF.framesActualSize.cx = rc.Height()
+    END
+  END
+    
+  !- notify the host
+  SELF.OnFrameDeleted(pFrameIndex)
+
+  !- refresh
+  SELF.SelectFrame(selIndex, TRUE)
   
 TBaseImageSelector.PrepareControl PROCEDURE()
   CODE
@@ -378,25 +650,25 @@ i                                       LONG, AUTO
   !- calc frame size (width = height*1.5)
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    SELF.frameSize.cx = rc.Width() - SELF.frameOutline.cx * 2
-    SELF.frameSize.cy = SELF.frameSize.cx / SELF.rAspectRatio
+    SELF.thumbnailSize.cx = rc.Width() - SELF.frameOutline.cx * 2
+    SELF.thumbnailSize.cy = SELF.thumbnailSize.cx / SELF.rAspectRatio
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    SELF.frameSize.cy = rc.Height() - SELF.frameOutline.cy * 2
-    SELF.frameSize.cx = SELF.frameSize.cy * SELF.rAspectRatio
+    SELF.thumbnailSize.cy = rc.Height() - SELF.frameOutline.cy * 2
+    SELF.thumbnailSize.cx = SELF.thumbnailSize.cy * SELF.rAspectRatio
   END
   
   !- create image of combined thumbnails
   SELF.framesImage &= NEW TGdiPlusBitmap
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    SELF.framesActualSize.cx = SELF.frameSize.cx + SELF.frameOutline.cx * 2
-    SELF.framesActualSize.cy = (SELF.frameSize.cy + SELF.frameOutline.cy) * numEntries + SELF.frameOutline.cy
+    SELF.framesActualSize.cx = SELF.thumbnailSize.cx + SELF.frameOutline.cx * 2
+    SELF.framesActualSize.cy = (SELF.thumbnailSize.cy + SELF.frameOutline.cy) * numEntries + SELF.frameOutline.cy
     IF SELF.framesActualSize.cy < rc.Height()
       SELF.framesActualSize.cy = rc.Height()
     END
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    SELF.framesActualSize.cx = (SELF.frameSize.cx + SELF.frameOutline.cx) * numEntries + SELF.frameOutline.cx
-    SELF.framesActualSize.cy = SELF.frameSize.cy + SELF.frameOutline.cy * 2
+    SELF.framesActualSize.cx = (SELF.thumbnailSize.cx + SELF.frameOutline.cx) * numEntries + SELF.frameOutline.cx
+    SELF.framesActualSize.cy = SELF.thumbnailSize.cy + SELF.frameOutline.cy * 2
     IF SELF.framesActualSize.cx < rc.Width()
       SELF.framesActualSize.cx = rc.Width()
     END
@@ -429,21 +701,21 @@ i                                       LONG, AUTO
       !- create thumbnail
       IF NOT SELF.bRetainOriginalAspectRatio
         !- make thumbnail equal to the frame
-        thumbnailSize = SELF.frameSize
+        thumbnailSize = SELF.thumbnailSize
         thumbnailPos.x = x
         thumbnailPos.y = y
       ELSE
         !- calculate thumbnail size to retain original aspect ratio
         thumbnailPos.x = x
         thumbnailPos.y = y
-        SELF.CalcThumbnailSize(frame, SELF.frameSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
+        SELF.CalcThumbnailSize(frame, SELF.thumbnailSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
       END
       frame.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
 !      thumbnail.Save(printf('.\tmpimages\%s', SELF.framesData.Descr))
       
       !- frame bacjkground
       IF bFillFrameBackground AND SELF.frameBkColor <> COLOR:NONE
-        g.FillRectangle(frameBrush, x, y, SELF.frameSize.cx, SELF.frameSize.cy)
+        g.FillRectangle(frameBrush, x, y, SELF.thumbnailSize.cx, SELF.thumbnailSize.cy)
       END
       
       !- append the thumbnail to combined image
@@ -455,9 +727,9 @@ i                                       LONG, AUTO
       !- shift down/right
       CASE SELF.orientation
       OF IMGSEL_ORIENTATION_VERTICAL
-        y += SELF.frameSize.cy + SELF.frameOutline.cy
+        y += SELF.thumbnailSize.cy + SELF.frameOutline.cy
       OF IMGSEL_ORIENTATION_HORIZONTAL
-        x += SELF.frameSize.cx + SELF.frameOutline.cx
+        x += SELF.thumbnailSize.cx + SELF.frameOutline.cx
       END
     ELSE
       !- Notify a host that the entry is not an image
@@ -469,9 +741,9 @@ i                                       LONG, AUTO
     !- if we allocated image size for non-image entries, reduce combined image szie
     CASE SELF.orientation
     OF IMGSEL_ORIENTATION_VERTICAL
-      SELF.framesActualSize.cy = (SELF.frameSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy
+      SELF.framesActualSize.cy = (SELF.thumbnailSize.cy + SELF.frameOutline.cy) * SELF.framesCount + SELF.frameOutline.cy
     OF IMGSEL_ORIENTATION_HORIZONTAL
-      SELF.framesActualSize.cx = (SELF.frameSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx
+      SELF.framesActualSize.cx = (SELF.thumbnailSize.cx + SELF.frameOutline.cx) * SELF.framesCount + SELF.frameOutline.cx
     END
   END
   
@@ -521,30 +793,30 @@ srcRect                                 LIKE(GpRect)
   
 TBaseImageSelector.GetCurrentSelRect  PROCEDURE(*GpRectF pSelRect)
   CODE
-  SELF.GetFrameRect(SELF.currentFrame, pSelRect)
+  SELF.GetSelRect(SELF.currentFrame, pSelRect)
   
-TBaseImageSelector.GetFrameRect   PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pFrameRect)
+TBaseImageSelector.GetSelRect PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pSelRect)
   CODE
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    pFrameRect.x = SELF.frameOutline.cx-SELF.selPenWidth/2
-    pFrameRect.y = SELF.frameOutline.cy + (pFrameIndex-1)*(SELF.frameSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
-    pFrameRect.width = SELF.frameSize.cx+SELF.selPenWidth
-    pFrameRect.height = SELF.frameSize.cy+SELF.selPenWidth
+    pSelRect.x = SELF.frameOutline.cx-SELF.selPenWidth/2
+    pSelRect.y = SELF.frameOutline.cy + (pFrameIndex-1)*(SELF.thumbnailSize.cy+SELF.frameOutline.cy) - SELF.selPenWidth/2
+    pSelRect.width = SELF.thumbnailSize.cx+SELF.selPenWidth
+    pSelRect.height = SELF.thumbnailSize.cy+SELF.selPenWidth
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    pFrameRect.x = SELF.frameOutline.cx + (pFrameIndex-1)*(SELF.frameSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
-    pFrameRect.y = SELF.frameOutline.cy-SELF.selPenWidth/2
-    pFrameRect.width = SELF.frameSize.cx+SELF.selPenWidth
-    pFrameRect.height = SELF.frameSize.cy+SELF.selPenWidth
+    pSelRect.x = SELF.frameOutline.cx + (pFrameIndex-1)*(SELF.thumbnailSize.cx+SELF.frameOutline.cx) - SELF.selPenWidth/2
+    pSelRect.y = SELF.frameOutline.cy-SELF.selPenWidth/2
+    pSelRect.width = SELF.thumbnailSize.cx+SELF.selPenWidth
+    pSelRect.height = SELF.thumbnailSize.cy+SELF.selPenWidth
   ELSE
     printd('TBaseImageSelector.GetFrameRect(%i) failed: invalid orientation.', pFrameIndex)
   END
 
-TBaseImageSelector.GetFrameRect   PROCEDURE(UNSIGNED pFrameIndex, *TRect pFrameRect)
-rc                                  LIKE(GpRectF)
+TBaseImageSelector.GetSelRect PROCEDURE(UNSIGNED pFrameIndex, *TRect pSelRect)
+rc                              LIKE(GpRectF)
   CODE
-  SELF.GetFrameRect(pFrameIndex, rc)
-  pFrameRect.Assign(rc.x, rc.y, rc.x+rc.width, rc.y+rc.height)
+  SELF.GetSelRect(pFrameIndex, rc)
+  pSelRect.Assign(rc.x, rc.y, rc.x+rc.width, rc.y+rc.height)
   
 TBaseImageSelector.CalcThumbnailSize  PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos)
 rImageWidth                             REAL, AUTO
@@ -581,7 +853,15 @@ nNewHeight                              UNSIGNED, AUTO
   ELSE
     pThumbnailSize = pFrameSize
   END
-
+  
+TBaseImageSelector.DrawSelection  PROCEDURE(TGdiPlusGraphics pGrahpics, UNSIGNED pFrameIndex, LONG pColor)
+selRect                             LIKE(GpRectF)
+pen                                 TGdiPlusPen
+  CODE
+  SELF.GetSelRect(pFrameIndex, selRect)
+  pen.CreatePen(GdipMakeARGB(pColor), SELF.selPenWidth)
+  pGrahpics.DrawRectangle(pen, selRect)
+  pen.DeletePen()
 
 TBaseImageSelector.OnPaint    PROCEDURE()
 dc                              TPaintDC
@@ -761,12 +1041,12 @@ bFrameClicked                       BOOL(FALSE)
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
     pt.y += (SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / 100
-    n = (pt.y / (SELF.frameSize.cy + SELF.frameOutline.cy)) + 1
-    bFrameClicked = CHOOSE(pt.y > ((n-1)*SELF.frameSize.cy + n*SELF.frameOutline.cy))
+    n = (pt.y / (SELF.thumbnailSize.cy + SELF.frameOutline.cy)) + 1
+    bFrameClicked = CHOOSE(pt.y > ((n-1)*SELF.thumbnailSize.cy + n*SELF.frameOutline.cy))
   OF IMGSEL_ORIENTATION_HORIZONTAL
     pt.x += (SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / 100
-    n = (pt.x / (SELF.frameSize.cx + SELF.frameOutline.cx)) + 1
-    bFrameClicked = CHOOSE(pt.x > ((n-1)*SELF.frameSize.cx + n*SELF.frameOutline.cx))
+    n = (pt.x / (SELF.thumbnailSize.cx + SELF.frameOutline.cx)) + 1
+    bFrameClicked = CHOOSE(pt.x > ((n-1)*SELF.thumbnailSize.cx + n*SELF.frameOutline.cx))
   END
   
   IF bFrameClicked AND n > 0 AND n <= SELF.framesCount
@@ -787,6 +1067,9 @@ TBaseImageSelector.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
 TBaseImageSelector.OnFrameRejected    PROCEDURE(STRING pFrameDescr)
   CODE
 
+TBaseImageSelector.OnFrameDeleted PROCEDURE(UNSIGNED pFrameIndex)
+  CODE
+  
 !!!endregion
 
 !!!region TVerticalImageSelector
