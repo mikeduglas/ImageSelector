@@ -1,6 +1,6 @@
 !* Image selector
 !* mikeduglas@yandex.ru
-!* 2022
+!* 31.08.2022
 
   MEMBER
 
