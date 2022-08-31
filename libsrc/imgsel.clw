@@ -422,7 +422,6 @@ dstRect                                     LIKE(GpRect)      !- rect to copy to
     SELF.CalcThumbnailSize(image, SELF.thumbnailSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
   END
   image.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
-!  image.GetThumbnailImage(SELF.thumbnailSize.cx, SELF.thumbnailSize.cy, thumbnail)
 
   !- replace thumbnail
   srcRect.x = 0
@@ -442,6 +441,14 @@ dstRect                                     LIKE(GpRect)      !- rect to copy to
     dstRect.width = SELF.thumbnailSize.cx
     dstRect.height = SELF.thumbnailSize.cy
   END
+ 
+  !- thumbnail background
+  IF SELF.bRetainOriginalAspectRatio AND SELF.frameBkColor <> COLOR:NONE
+    brush.CreateSolidBrush(GdipMakeARGB(SELF.frameBkColor))
+    g.FillRectangle(brush, dstRect.x - thumbnailPos.x, dstRect.y - thumbnailPos.y, dstRect.width, dstRect.height)
+    brush.DeleteBrush()
+  END
+
   g.DrawImage(thumbnail, dstRect, srcRect, UnitPixel)
   thumbnail.DisposeImage()
   image.DisposeImage()
@@ -727,7 +734,7 @@ i                                       LONG, AUTO
       END
       frame.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
       
-      !- frame bacjkground
+      !- thumbnail background
       IF bFillFrameBackground AND SELF.frameBkColor <> COLOR:NONE
         g.FillRectangle(frameBrush, x, y, SELF.thumbnailSize.cx, SELF.thumbnailSize.cy)
       END
