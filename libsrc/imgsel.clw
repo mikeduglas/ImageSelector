@@ -341,6 +341,8 @@ image                                       TGdiPlusImage
 thumbnail                                   TGdiPlusImage
 frameWidth                                  UNSIGNED, AUTO
 frameHeight                                 UNSIGNED, AUTO
+thumbnailSize                               LIKE(SIZE)
+thumbnailPos                                LIKE(POINT)
 bmpNew                                      &TGdiPlusBitmap
 g                                           TGdiPlusGraphics
 brush                                       TGdiPlusSolidBrush
@@ -407,9 +409,22 @@ dstRect                                     LIKE(GpRect)      !- rect to copy to
     g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
   END
   
-  !- replace a thumbnail
-  image.GetThumbnailImage(SELF.thumbnailSize.cx, SELF.thumbnailSize.cy, thumbnail)
+  !- create thumbnail
+  IF NOT SELF.bRetainOriginalAspectRatio
+    !- make thumbnail equal to the frame
+    thumbnailSize = SELF.thumbnailSize
+    thumbnailPos.x = 0
+    thumbnailPos.y = 0
+  ELSE
+    !- calculate thumbnail size to retain original aspect ratio
+    thumbnailPos.x = 0
+    thumbnailPos.y = 0
+    SELF.CalcThumbnailSize(image, SELF.thumbnailSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
+  END
+  image.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
+!  image.GetThumbnailImage(SELF.thumbnailSize.cx, SELF.thumbnailSize.cy, thumbnail)
 
+  !- replace thumbnail
   srcRect.x = 0
   srcRect.y = 0
   srcRect.width = SELF.thumbnailSize.cx
@@ -417,13 +432,13 @@ dstRect                                     LIKE(GpRect)      !- rect to copy to
 
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    dstRect.x = SELF.frameOutline.cx
-    dstRect.y = SELF.frameOutline.cy + (pFrameIndex-1) * (SELF.thumbnailSize.cy+SELF.frameOutline.cy)
+    dstRect.x = SELF.frameOutline.cx + thumbnailPos.x
+    dstRect.y = SELF.frameOutline.cy + (pFrameIndex-1) * (SELF.thumbnailSize.cy+SELF.frameOutline.cy) + thumbnailPos.y
     dstRect.width = SELF.thumbnailSize.cx
     dstRect.height = SELF.thumbnailSize.cy
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    dstRect.x = SELF.frameOutline.cx + (pFrameIndex-1) * (SELF.thumbnailSize.cx+SELF.frameOutline.cx)
-    dstRect.y = SELF.frameOutline.cy
+    dstRect.x = SELF.frameOutline.cx + (pFrameIndex-1) * (SELF.thumbnailSize.cx+SELF.frameOutline.cx) + thumbnailPos.x
+    dstRect.y = SELF.frameOutline.cy + thumbnailPos.y
     dstRect.width = SELF.thumbnailSize.cx
     dstRect.height = SELF.thumbnailSize.cy
   END
@@ -700,7 +715,7 @@ i                                       LONG, AUTO
       
       !- create thumbnail
       IF NOT SELF.bRetainOriginalAspectRatio
-        !- make thumbnail equal to the frame
+        !- don't change thumbnail size
         thumbnailSize = SELF.thumbnailSize
         thumbnailPos.x = x
         thumbnailPos.y = y
@@ -711,7 +726,6 @@ i                                       LONG, AUTO
         SELF.CalcThumbnailSize(frame, SELF.thumbnailSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
       END
       frame.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
-!      thumbnail.Save(printf('.\tmpimages\%s', SELF.framesData.Descr))
       
       !- frame bacjkground
       IF bFillFrameBackground AND SELF.frameBkColor <> COLOR:NONE
