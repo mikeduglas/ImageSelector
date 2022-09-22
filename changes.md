@@ -1,3 +1,11 @@
+22.09.2022
+- Drag mode. If enabled, you can drag and drop selected frame.
+- EnableDragging method enables or disables drag mode.
+- OnDrop event fires when a user drops dragging frame.
+- Demo1 project: added "Enable drag-n-drop" checkbox.
+- DropTarget demo project: the window changes its background to the image dropped from the Demo1.
+- winapi 22.09.2022 revision required.
+
 31.08.2022
 - New methods UpdateFrame, DeleteFrame.
 - demo1.clw demonstrates a usage of new features.

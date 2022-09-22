@@ -4,6 +4,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Clarion 2.1.0.2447
 Project("{12B76EC0-1D7B-4FA7-A7D0-C524288B48A1}") = "demo1", "demo1.cwproj", "{49BCE10F-11B6-4A6F-A2C2-0962E765395C}"
 EndProject
+Project("{12B76EC0-1D7B-4FA7-A7D0-C524288B48A1}") = "DropTarget", "DropTarget.cwproj", "{28E2BE3F-8BE0-4847-93E3-B5154D512592}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -14,5 +16,9 @@ Global
 		{49BCE10F-11B6-4A6F-A2C2-0962E765395C}.Debug|Win32.ActiveCfg = Debug|Win32
 		{49BCE10F-11B6-4A6F-A2C2-0962E765395C}.Release|Win32.Build.0 = Release|Win32
 		{49BCE10F-11B6-4A6F-A2C2-0962E765395C}.Release|Win32.ActiveCfg = Release|Win32
+		{28E2BE3F-8BE0-4847-93E3-B5154D512592}.Debug|Win32.Build.0 = Debug|Win32
+		{28E2BE3F-8BE0-4847-93E3-B5154D512592}.Debug|Win32.ActiveCfg = Debug|Win32
+		{28E2BE3F-8BE0-4847-93E3-B5154D512592}.Release|Win32.Build.0 = Release|Win32
+		{28E2BE3F-8BE0-4847-93E3-B5154D512592}.Release|Win32.ActiveCfg = Release|Win32
 	EndGlobalSection
 EndGlobal

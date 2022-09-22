@@ -7,6 +7,8 @@
     ReadDir(STRING pDir)
   END
 
+bDragDropEnable               BOOL(FALSE)
+
 Window                        WINDOW('Vertical image selector'),AT(,,347,205),CENTER,GRAY,SYSTEM, |
                                 FONT('Segoe UI',9),RESIZE
                                 IMAGE,AT(2,2,180,125),USE(?ImgViewer)
@@ -17,6 +19,7 @@ Window                        WINDOW('Vertical image selector'),AT(,,347,205),CE
                                 BUTTON('Down'),AT(297,39,40,14),USE(?btnScrollDown),ICON('ABDNROW.ICO'),LEFT
                                 BUTTON('Update'),AT(297,113,40),USE(?btnUpdate)
                                 BUTTON('Delete'),AT(297,137,40,14),USE(?btnDelete)
+                                CHECK(' Enable drag''n''drop'),AT(103,187),USE(bDragDropEnable)
                               END
 
 
@@ -24,6 +27,7 @@ ThisImgSel                    CLASS(TVerticalImageSelector)
 OnFrameSelected                 PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, DERIVED
 OnFrameRejected                 PROCEDURE(STRING pFrameDescr), PROTECTED, DERIVED
 OnFrameDeleted                  PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, DERIVED
+OnDrop                          PROCEDURE(UNSIGNED pFrameIndex, POINT pPt), PROTECTED, VIRTUAL
                               END
 
 
@@ -32,6 +36,14 @@ QDir                          QUEUE(File:Queue),PRE(QDir)
 FullPath                        STRING(FILE:MaxFileName)
                               END
 i                             LONG, AUTO
+
+WM_COPYDATA                   EQUATE(004Ah)
+
+tagCOPYDATASTRUCT             GROUP, TYPE
+dwData                          LONG
+cbData                          ULONG
+lpData                          LONG
+                              END
 
   CODE
   !- Open window
@@ -44,6 +56,9 @@ i                             LONG, AUTO
   !- retain aspect ratios of original images
 !  ThisImgSel.RetainOriginalAspectRatio(TRUE)
 !  ThisImgSel.CenterThumbnails(TRUE)
+!  ThisImgSel.SetBackColor(COLOR:Yellow)
+!  ThisImgSel.SetFrameBackColor(COLOR:Green)
+
   
   !- Add all image files from \images folder to the selector
   imgFolder = '.\images'
@@ -71,6 +86,9 @@ i                             LONG, AUTO
       
     OF ?btnDelete
       DO R::Delete
+      
+    OF ?bDragDropEnable
+      ThisImgSel.EnableDragging(bDragDropEnable)
     END
   END
 
@@ -197,4 +215,29 @@ ThisImgSel.OnFrameDeleted     PROCEDURE(UNSIGNED pFrameIndex)
   GET(QDir, pFrameIndex)
   IF NOT ERRORCODE()
     DELETE(QDir)
+  END
+  
+ThisImgSel.OnDrop             PROCEDURE(UNSIGNED pFrameIndex, POINT pPt)
+dropWin                         TWnd
+screenPt                        LIKE(POINT)
+imagePath                       STRING(FILE:MaxFilePath), AUTO
+cds                             LIKE(tagCOPYDATASTRUCT)
+  CODE
+  GET(QDir, pFrameIndex)
+  IF ERRORCODE()
+    RETURN
+  END
+  
+  imagePath = LONGPATH(QDir.FullPath)
+  
+  !- convert client point to screen point
+  screenPt = pPt
+  SELF.ClientToScreen(screenPt)
+  !- find a window (control) under the cursor
+  IF dropWin.WindowFromPoint(screenPt)
+    !- send WM_COPYDATA
+    cds.dwData = 0    !- function identifier
+    cds.cbData = LEN(imagePath)
+    cds.lpData = ADDRESS(imagePath)
+    dropWin.SendMessage(WM_COPYDATA, SELF.hwnd, ADDRESS(cds))
   END

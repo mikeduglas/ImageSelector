@@ -1,6 +1,6 @@
 !* Image selector
 !* mikeduglas@yandex.ru
-!* 31.08.2022
+!* 22.09.2022
 
   INCLUDE('winapi.inc'), ONCE
   INCLUDE('gdiplus.inc'), ONCE
@@ -27,6 +27,9 @@ scrollFactor                    UNSIGNED, PROTECTED             !- default: 3
 bRetainOriginalAspectRatio      BOOL, PROTECTED                 !- retain original aspect ratio; default: false
 bCenterThumbnails               BOOL, PROTECTED                 !- if RetainOriginalAspectRatio is true, center thumbnails; default: false
 visibleRect                     LIKE(GpRect), PROTECTED         !- part of combined image currenty visible
+
+bDraggingEnabled                BOOL, PROTECTED                 !- https://stackoverflow.com/questions/6142206/what-is-the-proper-way-of-handling-a-mouse-drag
+bDragModeActive                 BOOL, PROTECTED                 !- https://stackoverflow.com/questions/6142206/what-is-the-proper-way-of-handling-a-mouse-drag
 
 Construct                       PROCEDURE()
 Destruct                        PROCEDURE(), DERIVED
@@ -55,6 +58,7 @@ GetSelectedIndex                PROCEDURE(), UNSIGNED
 UpdateFrameFromRawData          PROCEDURE(UNSIGNED pFrameIndex, CONST *STRING pRawData)
 UpdateFrame                     PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName)
 DeleteFrame                     PROCEDURE(UNSIGNED pFrameIndex)
+EnableDragging                  PROCEDURE(BOOL pVal)
 
 PrepareControl                  PROCEDURE(), PROTECTED, VIRTUAL
 CreateFramesImage               PROCEDURE(), PROTECTED, VIRTUAL
@@ -70,9 +74,13 @@ OnVScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, P
 OnHScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnMouseWheel                    PROCEDURE(UNSIGNED wParam), BOOL, PROTECTED, VIRTUAL
 OnLButtonDown                   PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
+OnLButtonUp                     PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
+OnMouseMove                     PROCEDURE(UNSIGNED wParam, LONG lParam), PROTECTED, VIRTUAL
+OnCaptureChanged                PROCEDURE(LONG lParam), PROTECTED, VIRTUAL
 OnFrameSelected                 PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, VIRTUAL
 OnFrameRejected                 PROCEDURE(STRING pFrameDescr), PROTECTED, VIRTUAL
 OnFrameDeleted                  PROCEDURE(UNSIGNED pFrameIndex), PROTECTED, VIRTUAL
+OnDrop                          PROCEDURE(UNSIGNED pFrameIndex, POINT pPt), PROTECTED, VIRTUAL
                               END
 
 

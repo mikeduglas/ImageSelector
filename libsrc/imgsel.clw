@@ -1,6 +1,6 @@
 !* Image selector
 !* mikeduglas@yandex.ru
-!* 31.08.2022
+!* 22.09.2022
 
   MEMBER
 
@@ -30,7 +30,9 @@ ImageData                       ANY
                               END
 
 
-WM_MOUSEWHEEL                 EQUATE(020Ah)
+WM_MOUSEWHEEL                 EQUATE(020Ah) !- not found in svapi.inc
+WM_CAPTURECHANGED             EQUATE(0215h) !- not found in svapi.inc
+
 COLOR:WINDOWGRAY              EQUATE(0F0F0F0H)    !- default TAB background 
 
 IMGSEL_ORIENTATION_VERTICAL   EQUATE(1)
@@ -90,6 +92,15 @@ ctrl                            &TBaseImageSelector
     IF ctrl.OnLButtonDown(wParam, lParam) = FALSE
       RETURN FALSE
     END
+  OF WM_LBUTTONUP
+    IF ctrl.OnLButtonUp(wParam, lParam) = FALSE
+      RETURN FALSE
+    END
+  OF WM_MOUSEMOVE
+    ctrl.OnMouseMove(wParam, lParam)
+  OF WM_CAPTURECHANGED
+    ctrl.OnCaptureChanged(lParam)
+    RETURN FALSE
   END
   
   !- call original window proc
@@ -646,6 +657,10 @@ rc                                  TRect
   !- refresh
   SELF.SelectFrame(selIndex, TRUE)
   
+TBaseImageSelector.EnableDragging PROCEDURE(BOOL pVal)
+  CODE
+  SELF.bDraggingEnabled = pVal
+  
 TBaseImageSelector.PrepareControl PROCEDURE()
   CODE
   
@@ -1072,15 +1087,51 @@ bFrameClicked                       BOOL(FALSE)
   
   IF bFrameClicked AND n > 0 AND n <= SELF.framesCount
     IF SELF.currentFrame <> n
+      !- selected frame changed
       SELF.SelectFrame(n)
       
       !- don't call default handler DefSubclassProc
+      RETURN FALSE
+      
+    ELSIF SELF.bDraggingEnabled AND SELF.DragDetect(pt)
+      !- drag detected
+      SELF.bDragModeActive = TRUE
+      SELF.SetCapture()
+      SETCURSOR(CURSOR:Drop)
+
       RETURN FALSE
     END
   END
   
   !- call default handler DefSubclassProc
   RETURN TRUE
+
+TBaseImageSelector.OnLButtonUp    PROCEDURE(UNSIGNED wParam, LONG lParam)
+pt                                  LIKE(POINT)
+  CODE
+  IF SELF.bDragModeActive
+    SELF.ReleaseCapture()
+    SETCURSOR()
+    SELF.bDragModeActive = FALSE
+
+    pt.x = GET_X_LPARAM(lParam)
+    pt.y = GET_Y_LPARAM(lParam)
+
+    SELF.OnDrop(SELF.currentFrame, pt)
+  END
+  
+  RETURN TRUE
+  
+TBaseImageSelector.OnMouseMove    PROCEDURE(UNSIGNED wParam, LONG lParam)
+pt                                  LIKE(POINT)
+  CODE
+  IF SELF.bDragModeActive
+    pt.x = GET_X_LPARAM(lParam)
+    pt.y = GET_Y_LPARAM(lParam)
+  END
+  
+TBaseImageSelector.OnCaptureChanged   PROCEDURE(LONG lParam)
+  CODE
 
 TBaseImageSelector.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
   CODE
@@ -1091,6 +1142,8 @@ TBaseImageSelector.OnFrameRejected    PROCEDURE(STRING pFrameDescr)
 TBaseImageSelector.OnFrameDeleted PROCEDURE(UNSIGNED pFrameIndex)
   CODE
   
+TBaseImageSelector.OnDrop     PROCEDURE(UNSIGNED pFrameIndex, POINT pPt)
+  CODE
 !!!endregion
 
 !!!region TVerticalImageSelector
