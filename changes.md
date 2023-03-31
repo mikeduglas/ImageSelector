@@ -1,3 +1,6 @@
+31.03.2023
+- Removed CONST from method parameter declaration.
+
 22.09.2022
 - Drag mode. If enabled, you can drag and drop selected frame.
 - EnableDragging method enables or disables drag mode.

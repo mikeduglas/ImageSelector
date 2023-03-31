@@ -1,6 +1,6 @@
 !* Image selector
 !* mikeduglas@yandex.ru
-!* 22.09.2022
+!* 31.03.2023
 
   INCLUDE('winapi.inc'), ONCE
   INCLUDE('gdiplus.inc'), ONCE
@@ -10,11 +10,12 @@
 TBaseImageSelector            CLASS(TWnd), TYPE, MODULE('imgsel.clw'), LINK('imgsel.clw')
 framesCount                     UNSIGNED, PROTECTED             !- number of frames
 thumbnailSize                   LIKE(SIZE), PROTECTED           !- size of each thumbnail
-framesData                      &typImgSelFramesData, PROTECTED !- a list of images ata
+framesData                      &typImgSelFramesData, PROTECTED !- a list of images
 framesImage                     &TGdiPlusBitmap, PROTECTED      !- combined image
 framesActualSize                LIKE(SIZE), PROTECTED           !- size of full image
 frameOutline                    LIKE(SIZE), PROTECTED           !- default: 10x10
-scrollPos                       SIGNED, PROTECTED               !- scroll position (0..100)
+scrollPos                       SIGNED, PROTECTED               !- scroll position (0..scrollMax)
+scrollMax                       SIGNED, PROTECTED               !- default: 100
 currentFrame                    UNSIGNED, PROTECTED             !- selected frame index
 bkColor                         LONG, PROTECTED                 !- combined image background; default: COLOR:White
 selColor                        LONG, PROTECTED                 !- selection color; default: COLOR:Red
@@ -39,7 +40,7 @@ Reset                           PROCEDURE()
 Refresh                         PROCEDURE()
 AddFile                         PROCEDURE(STRING pFileName, <STRING pDescr>)
 !AddBlob                         PROCEDURE(BLOB pBlob, <STRING pDescr>)
-AddRawData                      PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
+AddRawData                      PROCEDURE(*STRING pRawData, <STRING pDescr>)
 SelectFrame                     PROCEDURE(UNSIGNED pFrameIndex, BOOL pForce=FALSE), VIRTUAL
 EnsureVisible                   PROCEDURE(UNSIGNED pFrameIndex), VIRTUAL
 SetBackColor                    PROCEDURE(LONG pBackColor)
@@ -55,7 +56,7 @@ CenterThumbnails                PROCEDURE(BOOL pValue)
 NumberOfFrames                  PROCEDURE(), UNSIGNED
 NumberOfVisibleFrames           PROCEDURE(), UNSIGNED
 GetSelectedIndex                PROCEDURE(), UNSIGNED
-UpdateFrameFromRawData          PROCEDURE(UNSIGNED pFrameIndex, CONST *STRING pRawData)
+UpdateFrameFromRawData          PROCEDURE(UNSIGNED pFrameIndex, *STRING pRawData)
 UpdateFrame                     PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName)
 DeleteFrame                     PROCEDURE(UNSIGNED pFrameIndex)
 EnableDragging                  PROCEDURE(BOOL pVal)
@@ -72,6 +73,7 @@ DrawSelection                   PROCEDURE(TGdiPlusGraphics pGrahpics, UNSIGNED p
 OnPaint                         PROCEDURE(), PROTECTED, VIRTUAL
 OnVScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnHScroll                       PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
+OnScroll                        PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnMouseWheel                    PROCEDURE(UNSIGNED wParam), BOOL, PROTECTED, VIRTUAL
 OnLButtonDown                   PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL
 OnLButtonUp                     PROCEDURE(UNSIGNED wParam, LONG lParam), BOOL, PROTECTED, VIRTUAL

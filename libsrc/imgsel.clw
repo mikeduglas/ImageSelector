@@ -1,6 +1,6 @@
 !* Image selector
 !* mikeduglas@yandex.ru
-!* 22.09.2022
+!* 31.03.2023
 
   MEMBER
 
@@ -35,6 +35,7 @@ WM_CAPTURECHANGED             EQUATE(0215h) !- not found in svapi.inc
 
 COLOR:WINDOWGRAY              EQUATE(0F0F0F0H)    !- default TAB background 
 
+IMGSEL_ORIENTATION_ENUM       EQUATE(LONG)
 IMGSEL_ORIENTATION_VERTICAL   EQUATE(1)
 IMGSEL_ORIENTATION_HORIZONTAL EQUATE(2)
 
@@ -75,7 +76,6 @@ ctrl                            &TBaseImageSelector
     ctrl.OnPaint()
     RETURN FALSE
   OF WM_VSCROLL
-    !https://stackoverflow.com/questions/32094254/how-to-control-scrollbar-in-vc-win32-api
     IF ctrl.OnVScroll(wParam, lParam) = FALSE
       RETURN FALSE
     END
@@ -120,6 +120,7 @@ TBaseImageSelector.Construct  PROCEDURE()
   SELF.pixelFormat = PixelFormat24bppRGB
   SELF.scrollFactor = 3
   SELF.scrollPos = 0
+  SELF.scrollMax = 100
   SELF.currentFrame = 0
   SELF.bRetainOriginalAspectRatio = FALSE
   SELF.bCenterThumbnails = FALSE
@@ -174,7 +175,7 @@ sData                           &STRING
   SELF.AddRawData(sData, pDescr)
   DISPOSE(sData)
   
-TBaseImageSelector.AddRawData PROCEDURE(CONST *STRING pRawData, <STRING pDescr>)
+TBaseImageSelector.AddRawData PROCEDURE(*STRING pRawData, <STRING pDescr>)
   CODE
   IF SELF.framesData &= NULL
     SELF.framesData &= NEW typImgSelFramesData
@@ -242,10 +243,10 @@ dc                                  TDC
 
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    scrollPos = rcSelection.top / SELF.framesActualSize.cy * 100
+    scrollPos = rcSelection.top / SELF.framesActualSize.cy * SELF.scrollMax
     SELF.SendMessage(WM_VSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    scrollPos = rcSelection.left / SELF.framesActualSize.cx * 100
+    scrollPos = rcSelection.left / SELF.framesActualSize.cx * SELF.scrollMax
     SELF.SendMessage(WM_HSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
   END
 
@@ -347,7 +348,7 @@ TBaseImageSelector.GetSelectedIndex   PROCEDURE()
   CODE
   RETURN SELF.currentFrame
   
-TBaseImageSelector.UpdateFrameFromRawData PROCEDURE(UNSIGNED pFrameIndex, CONST *STRING pRawData)
+TBaseImageSelector.UpdateFrameFromRawData PROCEDURE(UNSIGNED pFrameIndex, *STRING pRawData)
 image                                       TGdiPlusImage
 thumbnail                                   TGdiPlusImage
 frameWidth                                  UNSIGNED, AUTO
@@ -812,12 +813,12 @@ srcRect                                 LIKE(GpRect)
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
     srcRect.x=0
-    srcRect.y=(SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / 100
+    srcRect.y=(SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / SELF.scrollMax
     srcRect.width=SELF.framesActualSize.cx
     srcRect.height=destRect.height
     
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    srcRect.x=(SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / 100
+    srcRect.x=(SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / SELF.scrollMax
     srcRect.y=0
     srcRect.width=destRect.width
     srcRect.height=SELF.framesActualSize.cy
@@ -909,119 +910,84 @@ dc                              TPaintDC
   
   dc.GetDC(SELF)
   SELF.RedrawFramesImage(dc)
-  
+    
 TBaseImageSelector.OnVScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
-rc                              TRect
-dy                              UNSIGNED, AUTO
-py                              UNSIGNED, AUTO
-action                          USHORT, AUTO
-pos                             SIGNED, AUTO
-si                              LIKE(SCROLLINFO)
-dc                              TDC
   CODE
   IF SELF.orientation = IMGSEL_ORIENTATION_VERTICAL
-    SELF.GetClientRect(rc)
-    dy = SELF.scrollFactor        !- line scroll pos
-    py = 100 / SELF.framesCount   !- page scroll pos
-    IF py < dy*2
-      py = dy*2
-    END
-    
-    !- calc scroll pos
-    action = LOWORD(wParam)
-    pos = -1
-    CASE action 
-    OF SB_THUMBPOSITION OROF SB_THUMBTRACK
-      pos = HIWORD(wParam)
-    OF SB_LINEDOWN
-      pos = SELF.scrollPos + dy
-    OF SB_LINEUP
-      pos = SELF.scrollPos - dy
-    OF SB_PAGEDOWN
-      pos = SELF.scrollPos + py
-    OF SB_PAGEUP
-      pos = SELF.scrollPos - py
-    END
-  
-    IF pos = -1
-      !- no scroll
-      RETURN TRUE
-    END
-  
-    !- get actual scroll pos
-    si.cbSize = SIZE(si)
-    si.fMask = SIF_POS
-    si.nPos = pos
-    si.nTrackPos = 0
-    SELF.SetScrollInfo(SB_VERT, si, TRUE)
-    SELF.GetScrollInfo(SB_VERT, si)
-    pos = si.nPos
-
-    !- redraw if scroll pos changed
-    IF SELF.scrollPos <> pos
-      SELF.scrollPos = pos
-      dc.GetDC(SELF)
-      SELF.RedrawFramesImage(dc)
-      dc.ReleaseDC()
-    END
+    RETURN SELF.OnScroll(wParam, lParam)
   END
-  
-  RETURN FALSE
+  RETURN TRUE
     
 TBaseImageSelector.OnHScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
-rc                              TRect
-dx                              UNSIGNED, AUTO
-px                              UNSIGNED, AUTO
-action                          USHORT, AUTO
-pos                             SIGNED, AUTO
-si                              LIKE(SCROLLINFO)
-dc                              TDC
   CODE
   IF SELF.orientation = IMGSEL_ORIENTATION_HORIZONTAL
-    SELF.GetClientRect(rc)
-    dx = SELF.scrollFactor                !- line scroll pos
-    px = 100 / SELF.framesCount           !- page scroll pos
-    IF px < dx*2
-      px = dx*2
-    END
+    RETURN SELF.OnScroll(wParam, lParam)
+  END
+  RETURN TRUE
 
-    !- calc scroll pos
-    action = LOWORD(wParam)
-    pos = -1
-    CASE action 
-    OF SB_THUMBPOSITION OROF SB_THUMBTRACK
-      pos = HIWORD(wParam)
-    OF SB_LINERIGHT
-      pos = SELF.scrollPos + dx
-    OF SB_LINELEFT
-      pos = SELF.scrollPos - dx
-    OF SB_PAGERIGHT
-      pos = SELF.scrollPos + px
-    OF SB_PAGELEFT
-      pos = SELF.scrollPos - px
-    END
+TBaseImageSelector.OnScroll   PROCEDURE(UNSIGNED wParam, LONG lParam)
+!https://stackoverflow.com/questions/32094254/how-to-control-scrollbar-in-vc-win32-api
+sbType                          SIGNED, AUTO
+lineScrollPos                   UNSIGNED, AUTO
+pageScrollPos                   UNSIGNED, AUTO
+scrollPos                       SIGNED, AUTO
+action                          USHORT, AUTO
+si                              LIKE(SCROLLINFO)
+dc                              TDC
+rc                              TRect
+  CODE
+  SELF.GetClientRect(rc)
   
-    IF pos = -1
-      !- no scroll
-      RETURN TRUE
-    END
+  !- scrollbar type
+  sbType = CHOOSE(SELF.orientation = IMGSEL_ORIENTATION_VERTICAL, SB_VERT, SB_HORZ)
   
-    !- get actual scroll pos
-    si.cbSize = SIZE(si)
-    si.fMask = SIF_POS
-    si.nPos = pos
-    si.nTrackPos = 0
-    SELF.SetScrollInfo(SB_HORZ, si, TRUE)
-    SELF.GetScrollInfo(SB_HORZ, si)
-    pos = si.nPos
+  lineScrollPos = SELF.scrollFactor                   !- line scroll pos
+  pageScrollPos = SELF.scrollMax / SELF.framesCount   !- page scroll pos
+  IF pageScrollPos < lineScrollPos*2
+    pageScrollPos = lineScrollPos*2
+  END
+    
+  !- calc scroll pos
+  scrollPos = -1
+  action = LOWORD(wParam)
+  CASE action 
+  OF SB_THUMBPOSITION OROF SB_THUMBTRACK
+    !- absolute position
+    scrollPos = HIWORD(wParam)
+  OF SB_LINEDOWN    !SB_LINERIGHT for horizontal scroll
+    scrollPos = SELF.scrollPos + lineScrollPos
+  OF SB_LINEUP      !SB_LINELEFTT for horizontal scroll
+    scrollPos = SELF.scrollPos - lineScrollPos
+  OF SB_PAGEDOWN    !SB_PAGERIGHT for horizontal scroll
+    scrollPos = SELF.scrollPos + pageScrollPos
+  OF SB_PAGEUP      !SB_PAGELEFTT for horizontal scroll
+    scrollPos = SELF.scrollPos - pageScrollPos
+  END
+  
+  IF scrollPos = -1
+    !- no scroll
+    RETURN TRUE
+  END
+  
+  !- set new scroll pos
+  si.cbSize = SIZE(si)
+  si.fMask = SIF_POS + SIF_RANGE + SIF_DISABLENOSCROLL !+ SIF_PAGE
+  si.nPos = scrollPos
+  si.nMin = 0
+  si.nMax = SELF.scrollMax
+!  si.nPage = (CHOOSE(SELF.orientation = IMGSEL_ORIENTATION_VERTICAL, rc.Height(), rc.Width())) / SELF.framesCount
+  SELF.SetScrollInfo(sbType, si, TRUE)
+  
+  !- get actual scroll pos
+  SELF.GetScrollInfo(sbType, si)
+  scrollPos = si.nPos
 
-    !- redraw if scroll pos changed
-    IF SELF.scrollPos <> pos
-      SELF.scrollPos = pos
-      dc.GetDC(SELF)
-      SELF.RedrawFramesImage(dc)
-      dc.ReleaseDC()
-    END
+  !- redraw if scroll pos changed
+  IF SELF.scrollPos <> scrollPos
+    SELF.scrollPos = scrollPos
+    dc.GetDC(SELF)
+    SELF.RedrawFramesImage(dc)
+    dc.ReleaseDC()
   END
   
   RETURN FALSE
@@ -1076,11 +1042,11 @@ bFrameClicked                       BOOL(FALSE)
   !- check for outline clicked
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
-    pt.y += (SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / 100
+    pt.y += (SELF.framesActualSize.cy - rc.Height()) * SELF.scrollPos / SELF.scrollMax
     n = (pt.y / (SELF.thumbnailSize.cy + SELF.frameOutline.cy)) + 1
     bFrameClicked = CHOOSE(pt.y > ((n-1)*SELF.thumbnailSize.cy + n*SELF.frameOutline.cy))
   OF IMGSEL_ORIENTATION_HORIZONTAL
-    pt.x += (SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / 100
+    pt.x += (SELF.framesActualSize.cx - rc.Width()) * SELF.scrollPos / SELF.scrollMax
     n = (pt.x / (SELF.thumbnailSize.cx + SELF.frameOutline.cx)) + 1
     bFrameClicked = CHOOSE(pt.x > ((n-1)*SELF.thumbnailSize.cx + n*SELF.frameOutline.cx))
   END
