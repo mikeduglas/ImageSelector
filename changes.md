@@ -1,7 +1,7 @@
 15.08.2025
-- New InsertFile(index, file) method that insert an image to existing image collection at the position specified by index parameter, unlike the AddFile methods 
+- New InsertFrame method that insert an image to existing image collection at the position specified by index parameter, unlike the AddFile methods 
 that form the initial collection.
-- demo1 was updated to demonstrate the InsertFile usage.
+- demo1 was updated to demonstrate the InsertFrame usage.
 
 31.03.2023
 - Removed CONST from method parameter declaration.
