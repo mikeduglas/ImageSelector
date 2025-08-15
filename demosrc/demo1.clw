@@ -5,22 +5,24 @@
   MAP
     INCLUDE('printf.inc'), ONCE
     ReadDir(STRING pDir)
+    InsertFile(STRING pFile)
   END
 
 bDragDropEnable               BOOL(FALSE)
 
-Window                        WINDOW('Vertical image selector'),AT(,,347,205),CENTER,GRAY,SYSTEM, |
-                                FONT('Segoe UI',9),RESIZE
-                                IMAGE,AT(2,2,180,125),USE(?ImgViewer)
-                                PROMPT('Set in code'),AT(2,130),USE(?LblDescr)
-                                IMAGE,AT(192,2,93),FULL,USE(?ImgSelector)
-                                BUTTON('Select folder...'),AT(2,183,56),USE(?btnSelectFolder)
-                                BUTTON('Up'),AT(297,15,40,14),USE(?btnScrollUp),ICON('ABUPROW.ICO'),LEFT
-                                BUTTON('Down'),AT(297,39,40,14),USE(?btnScrollDown),ICON('ABDNROW.ICO'),LEFT
-                                BUTTON('Update'),AT(297,113,40),USE(?btnUpdate)
-                                BUTTON('Delete'),AT(297,137,40,14),USE(?btnDelete)
-                                CHECK(' Enable drag''n''drop'),AT(103,187),USE(bDragDropEnable)
-                              END
+Window                                  WINDOW('Vertical image selector'),AT(,,347,205),CENTER,GRAY,SYSTEM, |
+                                          FONT('Segoe UI',9),RESIZE
+                                          IMAGE,AT(2,2,180,125),USE(?ImgViewer)
+                                          PROMPT('Set in code'),AT(2,130),USE(?LblDescr)
+                                          IMAGE,AT(192,2,93),FULL,USE(?ImgSelector)
+                                          BUTTON('Select folder...'),AT(2,164,56),USE(?btnSelectFolder)
+                                          BUTTON('Insert file'),AT(2,181,56),USE(?btnInsertFile)
+                                          BUTTON('Up'),AT(297,15,40,14),USE(?btnScrollUp),ICON('ABUPROW.ICO'),LEFT
+                                          BUTTON('Down'),AT(297,39,40,14),USE(?btnScrollDown),ICON('ABDNROW.ICO'),LEFT
+                                          BUTTON('Update'),AT(297,113,40),USE(?btnUpdate)
+                                          BUTTON('Delete'),AT(297,137,40,14),USE(?btnDelete)
+                                          CHECK(' Enable drag''n''drop'),AT(103,187),USE(bDragDropEnable)
+                                        END
 
 
 ThisImgSel                    CLASS(TVerticalImageSelector)
@@ -32,8 +34,9 @@ OnDrop                          PROCEDURE(UNSIGNED pFrameIndex, POINT pPt), PROT
 
 
 imgFolder                     STRING(FILE:MaxFilePath)
+imgFile                       STRING(FILE:MaxFilePath)
 QDir                          QUEUE(File:Queue),PRE(QDir)
-FullPath                        STRING(FILE:MaxFileName)
+FullPath                        STRING(FILE:MaxFilePath)
                               END
 i                             LONG, AUTO
 
@@ -75,6 +78,19 @@ lpData                          LONG
         ThisImgSel.Refresh()
       END
       
+    OF ?btnInsertFile
+      !- add a file to the list
+      imgFile = ''
+      IF FILEDIALOG(, imgFile, |
+        'Portable Network Graphics (*.png)|*.png|'&|
+        'File Interchange Format (*.jpg)|*.jpg|'&|
+        'Bitmap files (*.bmp)|*.bmp|'&|
+        'Graphics Interchange Format (*.gif)|*.gif|'&|
+        'Tagged Image File Format (*.tif)|*.tif', |
+        FILE:LongName + FILE:AddExtension + FILE:KeepDir)
+        InsertFile(imgFile)
+      END
+
     OF ?btnScrollDown
       DO R::ScrollDown
          
@@ -183,6 +199,22 @@ ReadDir                       PROCEDURE(STRING pDir)
     ThisImgSel.AddFile(QDir.FullPath, QDir.Name)
   END
 
+InsertFile                              PROCEDURE(STRING pFile)
+frameIndex                                LONG, AUTO
+  CODE
+  !- read file attributes
+  DIRECTORY(QDir, pFile, ff_:NORMAL)
+  !- save full path
+  GET(QDir, RECORDS(QDir))
+  QDir.FullPath = imgFile
+  PUT(QDir)
+  !- insert at the end of the list
+  frameIndex = RECORDS(QDir)
+  ThisImgSel.InsertFrame(frameIndex, QDir.FullPath, QDir.Name)
+  !- select
+  ThisImgSel.SelectFrame(frameIndex)
+  !- make it visible
+  ThisImgSel.EnsureVisible(frameIndex)
   
 !- Display selected image
 ThisImgSel.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)

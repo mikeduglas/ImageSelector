@@ -1,6 +1,6 @@
 !* Image selector
 !* mikeduglas@yandex.ru
-!* 31.03.2023
+!* 15.08.2025
 
   MEMBER
 
@@ -24,44 +24,44 @@
 
 
 !- Raw image data
-typImgSelFramesData           QUEUE, TYPE
-Descr                           STRING(256)
-ImageData                       ANY
-                              END
+typImgSelFramesData                     QUEUE, TYPE
+Descr                                     STRING(256)
+ImageData                                 ANY
+                                        END
 
 
-WM_MOUSEWHEEL                 EQUATE(020Ah) !- not found in svapi.inc
-WM_CAPTURECHANGED             EQUATE(0215h) !- not found in svapi.inc
+WM_MOUSEWHEEL                           EQUATE(020Ah) !- not found in svapi.inc
+WM_CAPTURECHANGED                       EQUATE(0215h) !- not found in svapi.inc
 
-COLOR:WINDOWGRAY              EQUATE(0F0F0F0H)    !- default TAB background 
+COLOR:WINDOWGRAY                        EQUATE(0F0F0F0H)    !- default TAB background 
 
-IMGSEL_ORIENTATION_ENUM       EQUATE(LONG)
-IMGSEL_ORIENTATION_VERTICAL   EQUATE(1)
-IMGSEL_ORIENTATION_HORIZONTAL EQUATE(2)
+IMGSEL_ORIENTATION_ENUM                 EQUATE(LONG)
+IMGSEL_ORIENTATION_VERTICAL             EQUATE(1)
+IMGSEL_ORIENTATION_HORIZONTAL           EQUATE(2)
 
 
 !!!region macros
-LOWORD                        PROCEDURE(LONG pLongVal)
+LOWORD                                  PROCEDURE(LONG pLongVal)
   CODE
   RETURN BAND(pLongVal, 0FFFFh)
 
-HIWORD                        PROCEDURE(LONG pLongVal)
+HIWORD                                  PROCEDURE(LONG pLongVal)
   CODE
   RETURN BSHIFT(BAND(pLongVal, 0FFFF0000h), -16)
 
-GET_X_LPARAM                  PROCEDURE(LONG pLongVal)
+GET_X_LPARAM                            PROCEDURE(LONG pLongVal)
   CODE
   RETURN LOWORD(pLongVal)
 
-GET_Y_LPARAM                  PROCEDURE(LONG pLongVal)
+GET_Y_LPARAM                            PROCEDURE(LONG pLongVal)
   CODE
   RETURN HIWORD(pLongVal)
 !!!endregion
   
 !!!region callbacks
-img_SubclassProc              PROCEDURE(HWND hWnd, ULONG wMsg, UNSIGNED wParam, LONG lParam, ULONG subclassId, UNSIGNED dwRefData)
-win                             TWnd
-ctrl                            &TBaseImageSelector
+img_SubclassProc                        PROCEDURE(HWND hWnd, ULONG wMsg, UNSIGNED wParam, LONG lParam, ULONG subclassId, UNSIGNED dwRefData)
+win                                       TWnd
+ctrl                                      &TBaseImageSelector
   CODE
   win.SetHandle(hWnd)
   !- get TBaseImageSelector instance
@@ -108,7 +108,7 @@ ctrl                            &TBaseImageSelector
 !!!endregion
   
 !!!region TBaseImageSelector
-TBaseImageSelector.Construct  PROCEDURE()
+TBaseImageSelector.Construct            PROCEDURE()
   CODE
   SELF.frameOutline.cx = 10
   SELF.frameOutline.cy = 10
@@ -126,11 +126,11 @@ TBaseImageSelector.Construct  PROCEDURE()
   SELF.bCenterThumbnails = FALSE
   SELF.frameBkColor = COLOR:NONE
   
-TBaseImageSelector.Destruct   PROCEDURE()
+TBaseImageSelector.Destruct             PROCEDURE()
   CODE
   SELF.Kill()
   
-TBaseImageSelector.Init       PROCEDURE(SIGNED pFeq)
+TBaseImageSelector.Init                 PROCEDURE(SIGNED pFeq)
   CODE
   ASSERT(pFeq{PROP:Type} = CREATE:image)
   IF pFeq{PROP:Type} = CREATE:image
@@ -141,7 +141,7 @@ TBaseImageSelector.Init       PROCEDURE(SIGNED pFeq)
     printd('TImageSelector.Init(%i) error: Invalid control type', pFeq)
   END
   
-TBaseImageSelector.Kill       PROCEDURE()
+TBaseImageSelector.Kill                 PROCEDURE()
   CODE
   IF NOT SELF.framesData &= NULL
     FREE(SELF.framesData)
@@ -154,28 +154,28 @@ TBaseImageSelector.Kill       PROCEDURE()
     SELF.framesImage &= NULL
   END
   
-TBaseImageSelector.Reset      PROCEDURE()
+TBaseImageSelector.Reset                PROCEDURE()
   CODE
   SELF.Kill()
   SELF.scrollPos = 0
   SELF.currentFrame = 0
   
-TBaseImageSelector.Refresh    PROCEDURE()
+TBaseImageSelector.Refresh              PROCEDURE()
   CODE
   SELF.InvalidateRect(FALSE)
     
   !- reset scrollbar
   SELF.SendMessage(WM_MOUSEWHEEL, 10000h, 0)
 
-TBaseImageSelector.AddFile    PROCEDURE(STRING pFileName, <STRING pDescr>)
-df                              TDiskFile
-sData                           &STRING
+TBaseImageSelector.AddFile              PROCEDURE(STRING pFileName, <STRING pDescr>)
+df                                        TDiskFile
+sData                                     &STRING
   CODE
   sData &= df.LoadFile(pFileName)
   SELF.AddRawData(sData, pDescr)
   DISPOSE(sData)
   
-TBaseImageSelector.AddRawData PROCEDURE(*STRING pRawData, <STRING pDescr>)
+TBaseImageSelector.AddRawData           PROCEDURE(*STRING pRawData, <STRING pDescr>)
   CODE
   IF SELF.framesData &= NULL
     SELF.framesData &= NEW typImgSelFramesData
@@ -186,9 +186,9 @@ TBaseImageSelector.AddRawData PROCEDURE(*STRING pRawData, <STRING pDescr>)
   SELF.framesData.ImageData = CLIP(pRawData)
   ADD(SELF.framesData)
   
-TBaseImageSelector.SelectFrame    PROCEDURE(UNSIGNED pFrameIndex, BOOL pForce=FALSE)
-dc                                  TDC
-g                                   TGdiPlusGraphics
+TBaseImageSelector.SelectFrame          PROCEDURE(UNSIGNED pFrameIndex, BOOL pForce=FALSE)
+dc                                        TDC
+g                                         TGdiPlusGraphics
   CODE
   IF (NOT SELF.framesImage &= NULL) AND (pForce OR SELF.currentFrame <> pFrameIndex)
     g.FromImage(SELF.framesImage)
@@ -213,13 +213,13 @@ g                                   TGdiPlusGraphics
     SELF.OnFrameSelected(SELF.currentFrame)
   END
   
-TBaseImageSelector.EnsureVisible  PROCEDURE(UNSIGNED pFrameIndex)
-rcClient                            TRect
-rcVisible                           TRect
-rcSelection                         TRect
-rcHalfFrame                         TRect
-scrollPos                           UNSIGNED, AUTO
-dc                                  TDC
+TBaseImageSelector.EnsureVisible        PROCEDURE(UNSIGNED pFrameIndex)
+rcClient                                  TRect
+rcVisible                                 TRect
+rcSelection                               TRect
+rcHalfFrame                               TRect
+scrollPos                                 UNSIGNED, AUTO
+dc                                        TDC
   CODE
   IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
     RETURN
@@ -250,8 +250,7 @@ dc                                  TDC
     SELF.SendMessage(WM_HSCROLL, BOR(SB_THUMBPOSITION, BSHIFT(scrollPos, 16)), 0)
   END
 
-
-TBaseImageSelector.SetBackColor   PROCEDURE(LONG pBackColor)
+TBaseImageSelector.SetBackColor         PROCEDURE(LONG pBackColor)
   CODE
   IF pBackColor <> COLOR:NONE
     IF BAND(pBackColor, 80000000h)
@@ -267,11 +266,11 @@ TBaseImageSelector.SetBackColor   PROCEDURE(LONG pBackColor)
     END
   END
   
-TBaseImageSelector.SetSelColor    PROCEDURE(LONG pSelColor)
+TBaseImageSelector.SetSelColor          PROCEDURE(LONG pSelColor)
   CODE
   SELF.selColor = pSelColor
   
-TBaseImageSelector.SetFrameBackColor  PROCEDURE(LONG pBackColor)
+TBaseImageSelector.SetFrameBackColor    PROCEDURE(LONG pBackColor)
   CODE
   IF pBackColor <> COLOR:NONE
     IF BAND(pBackColor, 80000000h)
@@ -283,47 +282,47 @@ TBaseImageSelector.SetFrameBackColor  PROCEDURE(LONG pBackColor)
     SELF.frameBkColor = COLOR:NONE
   END
 
-TBaseImageSelector.SetSelPenWidth PROCEDURE(UNSIGNED pPenWidth)
+TBaseImageSelector.SetSelPenWidth       PROCEDURE(UNSIGNED pPenWidth)
   CODE
   SELF.selPenWidth = pPenWidth
   
-TBaseImageSelector.SetOutlineSize PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
+TBaseImageSelector.SetOutlineSize       PROCEDURE(UNSIGNED pWidth, UNSIGNED pHeight)
   CODE
   SELF.frameOutline.cx = pWidth
   SELF.frameOutline.cy = pHeight
 
-TBaseImageSelector.SetAspectRatio PROCEDURE(SREAL pAspectRatio)
+TBaseImageSelector.SetAspectRatio       PROCEDURE(SREAL pAspectRatio)
   CODE
   SELF.rAspectRatio = pAspectRatio
   
-TBaseImageSelector.SetPixelFormat PROCEDURE(GpPixelFormat pFmt)
+TBaseImageSelector.SetPixelFormat       PROCEDURE(GpPixelFormat pFmt)
   CODE
   SELF.pixelFormat = pFmt
   
-TBaseImageSelector.SetScrollFactor    PROCEDURE(UNSIGNED pFactor)
+TBaseImageSelector.SetScrollFactor      PROCEDURE(UNSIGNED pFactor)
   CODE
   SELF.scrollFactor = pFactor
   IF SELF.scrollFactor = 0
     SELF.scrollFactor = 1
   END
   
-TBaseImageSelector.RetainOriginalAspectRatio  PROCEDURE(BOOL pValue)
+TBaseImageSelector.RetainOriginalAspectRatio    PROCEDURE(BOOL pValue)
   CODE
   SELF.bRetainOriginalAspectRatio = pValue
   
-TBaseImageSelector.CenterThumbnails   PROCEDURE(BOOL pValue)
+TBaseImageSelector.CenterThumbnails     PROCEDURE(BOOL pValue)
   CODE
   SELF.bCenterThumbnails = pValue
   
-TBaseImageSelector.NumberOfFrames PROCEDURE()
+TBaseImageSelector.NumberOfFrames       PROCEDURE()
   CODE
   RETURN SELF.framesCount
   
-TBaseImageSelector.NumberOfVisibleFrames  PROCEDURE()
-rc                                          TRect
-frameWidth                                  SREAL, AUTO
-frameHeight                                 SREAL, AUTO
-quotient                                    SREAL(0)
+TBaseImageSelector.NumberOfVisibleFrames    PROCEDURE()
+rc                                            TRect
+frameWidth                                    SREAL, AUTO
+frameHeight                                   SREAL, AUTO
+quotient                                      SREAL(0)
   CODE
   SELF.GetClientRect(rc)
   frameWidth = SELF.thumbnailSize.cx + SELF.frameOutline.cx*2
@@ -344,24 +343,24 @@ quotient                                    SREAL(0)
     RETURN SELF.framesCount
   END
   
-TBaseImageSelector.GetSelectedIndex   PROCEDURE()
+TBaseImageSelector.GetSelectedIndex     PROCEDURE()
   CODE
   RETURN SELF.currentFrame
   
-TBaseImageSelector.UpdateFrameFromRawData PROCEDURE(UNSIGNED pFrameIndex, *STRING pRawData)
-image                                       TGdiPlusImage
-thumbnail                                   TGdiPlusImage
-frameWidth                                  UNSIGNED, AUTO
-frameHeight                                 UNSIGNED, AUTO
-thumbnailSize                               LIKE(SIZE)
-thumbnailPos                                LIKE(POINT)
-bmpNew                                      &TGdiPlusBitmap
-g                                           TGdiPlusGraphics
-brush                                       TGdiPlusSolidBrush
-bmpSize                                     LIKE(SIZE)      !- current size of combined image
-srcUnit                                     GpUnit
-srcRect                                     LIKE(GpRect)      !- rect to copy from
-dstRect                                     LIKE(GpRect)      !- rect to copy to
+TBaseImageSelector.UpdateFrameFromRawData   PROCEDURE(UNSIGNED pFrameIndex, *STRING pRawData)
+image                                         TGdiPlusImage
+thumbnail                                     TGdiPlusImage
+frameWidth                                    UNSIGNED, AUTO
+frameHeight                                   UNSIGNED, AUTO
+thumbnailSize                                 LIKE(SIZE)
+thumbnailPos                                  LIKE(POINT)
+bmpNew                                        &TGdiPlusBitmap
+g                                             TGdiPlusGraphics
+brush                                         TGdiPlusSolidBrush
+bmpSize                                       LIKE(SIZE)      !- current size of combined image
+srcUnit                                       GpUnit
+srcRect                                       LIKE(GpRect)      !- rect to copy from
+dstRect                                       LIKE(GpRect)      !- rect to copy to
   CODE
   IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
     printd('TBaseImageSelector.UpdateFrameFromRawData(%i) failed: index out of range.', pFrameIndex)
@@ -497,27 +496,186 @@ dstRect                                     LIKE(GpRect)      !- rect to copy to
   
   !- refresh
   SELF.SelectFrame(SELF.currentFrame, TRUE)
+    
+TBaseImageSelector.InsertFrame          PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName, <STRING pDescr>)
+frameWidth                                UNSIGNED, AUTO
+frameHeight                               UNSIGNED, AUTO
+bmpNew                                    &TGdiPlusBitmap
+g                                         TGdiPlusGraphics
+brush                                     TGdiPlusSolidBrush
+bmpSize                                   LIKE(SIZE)      !- current size of combined image
+srcUnit                                   GpUnit
+srcRect                                   LIKE(GpRect)      !- rect to copy from
+dstRect                                   LIKE(GpRect)      !- rect to copy to
+selIndex                                  UNSIGNED, AUTO
+rc                                        TRect
+x                                         SIGNED, AUTO
+y                                         SIGNED, AUTO
+  CODE
+  SELF.AddFile(pFileName, pDescr)
   
-TBaseImageSelector.UpdateFrame    PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName)
-df                                  TDiskFile
-sData                               &STRING
+  IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
+    !- append to the end
+    pFrameIndex = SELF.framesCount+1
+  END
+  
+  SELF.GetClientRect(rc)
+
+  !- erase previous selection
+  g.FromImage(SELF.framesImage)
+  SELF.DrawSelection(g, SELF.currentFrame, SELF.bkColor)
+  g.DeleteGraphics()
+
+  frameWidth = SELF.thumbnailSize.cx + SELF.frameOutline.cx
+  frameHeight = SELF.thumbnailSize.cy + SELF.frameOutline.cy
+
+  !- current bitmap size
+  bmpSize.cx = SELF.framesActualSize.cx
+  bmpSize.cy = SELF.framesActualSize.cy
+
+  !- increase the size of inserting frame
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    bmpSize.cy += frameHeight
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    bmpSize.cx += frameWidth
+  END
+
+  !- create new bitmap
+  bmpNew &= NEW TGdiPlusBitmap
+  bmpNew.CreateBitmap(bmpSize.cx, bmpSize.cy, SELF.pixelFormat)
+  
+  !- draw on bmpNew
+  g.FromImage(bmpNew)
+    
+  !- erase background
+  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
+  g.FillRectangle(brush, 0, 0, bmpSize.cx, bmpSize.cy)
+  brush.DeleteBrush()
+
+  !- copy the image below (or to the right of) inserting frame
+  IF pFrameIndex < SELF.framesCount+1
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      srcRect.x = 0
+      srcRect.y = (pFrameIndex-1) * frameHeight
+      srcRect.width = bmpSize.cx
+      srcRect.height = (SELF.framesCount+1 - pFrameIndex) * frameHeight
+    
+      dstRect = srcRect
+      dstRect.y += frameHeight
+
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      srcRect.x = (pFrameIndex-1) * frameWidth
+      srcRect.y = 0
+      srcRect.width = (SELF.framesCount+1 - pFrameIndex) * frameWidth
+      srcRect.height = bmpSize.cy
+    
+      dstRect = srcRect
+      dstRect.x += frameWidth
+    END
+      
+    g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
+  END
+  
+  !- insert new frame
+  IF SELF.bRetainOriginalAspectRatio AND SELF.frameBkColor <> COLOR:NONE
+    brush.CreateSolidBrush(GdipMakeARGB(SELF.frameBkColor))
+  END
+
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    x = SELF.frameOutline.cx
+    y = SELF.frameOutline.cy + (SELF.thumbnailSize.cy + SELF.frameOutline.cy) * (pFrameIndex-1)
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    x = SELF.frameOutline.cx + (SELF.thumbnailSize.cx + SELF.frameOutline.cx) * (pFrameIndex-1)
+    y = SELF.frameOutline.cy
+  END
+
+  SELF.CreateFrame(1, g, brush, x, y)
+
+  !- copy the image above (or to the left of) inserting frame
+  IF pFrameIndex > 1
+    CASE SELF.orientation
+    OF IMGSEL_ORIENTATION_VERTICAL
+      srcRect.x = 0
+      srcRect.y = 0
+      srcRect.width = bmpSize.cx
+      srcRect.height = (pFrameIndex-1) * frameHeight
+    
+      dstRect = srcRect
+    
+    OF IMGSEL_ORIENTATION_HORIZONTAL
+      srcRect.x = 0
+      srcRect.y = 0
+      srcRect.width = (pFrameIndex-1) * frameWidth
+      srcRect.height = bmpSize.cy
+    
+      dstRect = srcRect
+    END
+
+    g.DrawImage(SELF.framesImage, dstRect, srcRect, UnitPixel)
+  END
+  
+  !- replace old bitmap with new one
+  SELF.framesImage.DisposeImage()
+  SELF.framesImage &= bmpNew
+  
+  !- clean up
+  g.DeleteGraphics()
+  
+  !- update the selection
+  IF pFrameIndex < SELF.currentFrame
+    !- inserted frame is above selection
+    selIndex = SELF.currentFrame+1
+  ELSIF pFrameIndex > SELF.currentFrame
+    !- inserted frame is below selection
+    selIndex = SELF.currentFrame
+  ELSE
+    !- inserted frame is selected frame
+    IF SELF.currentFrame = SELF.framesCount
+      !- last frame selected
+      selIndex = SELF.currentFrame+1      
+    ELSE
+      !- not last frame selected: retain selection
+      selIndex = SELF.currentFrame
+    END
+  END
+
+  !- change some properties
+  CASE SELF.orientation
+  OF IMGSEL_ORIENTATION_VERTICAL
+    SELF.framesActualSize.cy += frameHeight
+  OF IMGSEL_ORIENTATION_HORIZONTAL
+    SELF.framesActualSize.cx += frameWidth
+  END
+ 
+  !- free data queue
+  FREE(SELF.framesData)
+  
+  !- restore selection
+  SELF.SelectFrame(selIndex, TRUE)
+
+TBaseImageSelector.UpdateFrame          PROCEDURE(UNSIGNED pFrameIndex, STRING pFileName)
+df                                        TDiskFile
+sData                                     &STRING
   CODE
   sData &= df.LoadFile(pFileName)
   SELF.UpdateFrameFromRawData(pFrameIndex, sData)
   DISPOSE(sData)
   
-TBaseImageSelector.DeleteFrame    PROCEDURE(UNSIGNED pFrameIndex)
-frameWidth                          UNSIGNED, AUTO
-frameHeight                         UNSIGNED, AUTO
-bmpNew                              &TGdiPlusBitmap
-g                                   TGdiPlusGraphics
-brush                               TGdiPlusSolidBrush
-bmpSize                             LIKE(SIZE)      !- current size of combined image
-srcUnit                             GpUnit
-srcRect                             LIKE(GpRect)      !- rect to copy from
-dstRect                             LIKE(GpRect)      !- rect to copy to
-selIndex                            UNSIGNED, AUTO
-rc                                  TRect
+TBaseImageSelector.DeleteFrame          PROCEDURE(UNSIGNED pFrameIndex)
+frameWidth                                UNSIGNED, AUTO
+frameHeight                               UNSIGNED, AUTO
+bmpNew                                    &TGdiPlusBitmap
+g                                         TGdiPlusGraphics
+brush                                     TGdiPlusSolidBrush
+bmpSize                                   LIKE(SIZE)      !- current size of combined image
+srcUnit                                   GpUnit
+srcRect                                   LIKE(GpRect)      !- rect to copy from
+dstRect                                   LIKE(GpRect)      !- rect to copy to
+selIndex                                  UNSIGNED, AUTO
+rc                                        TRect
   CODE
   IF pFrameIndex < 1 OR pFrameIndex > SELF.framesCount
     printd('TBaseImageSelector.DeleteFrame(%i) failed: index out of range.', pFrameIndex)
@@ -658,33 +816,19 @@ rc                                  TRect
   !- refresh
   SELF.SelectFrame(selIndex, TRUE)
   
-TBaseImageSelector.EnableDragging PROCEDURE(BOOL pVal)
+TBaseImageSelector.EnableDragging       PROCEDURE(BOOL pVal)
   CODE
   SELF.bDraggingEnabled = pVal
   
-TBaseImageSelector.PrepareControl PROCEDURE()
+TBaseImageSelector.PrepareControl       PROCEDURE()
   CODE
-  
-TBaseImageSelector.CreateFramesImage  PROCEDURE()
-rc                                      TRect
-frame                                   TGdiPlusImage
-thumbnail                               TGdiPlusImage
-thumbnailPos                            LIKE(POINT)
-thumbnailSize                           LIKE(SIZE)
-g                                       TGdiPlusGraphics
-brush                                   TGdiPlusSolidBrush
-frameBrush                              TGdiPlusSolidBrush
-bFillFrameBackground                    BOOL(FALSE)
-x                                       SIGNED, AUTO
-y                                       SIGNED, AUTO
-numEntries                              UNSIGNED, AUTO
-i                                       LONG, AUTO
-  CODE
-  SELF.GetClientRect(rc)
 
+TBaseImageSelector.CalcSizes            PROCEDURE(TRect rc)
+numEntries                                UNSIGNED, AUTO
+  CODE
   !- number of entries
   numEntries = RECORDS(SELF.framesData)
-  
+
   !- calc frame size (width = height*1.5)
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
@@ -694,9 +838,8 @@ i                                       LONG, AUTO
     SELF.thumbnailSize.cy = rc.Height() - SELF.frameOutline.cy * 2
     SELF.thumbnailSize.cx = SELF.thumbnailSize.cy * SELF.rAspectRatio
   END
-  
-  !- create image of combined thumbnails
-  SELF.framesImage &= NEW TGdiPlusBitmap
+
+  !- calc actual control size
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
     SELF.framesActualSize.cx = SELF.thumbnailSize.cx + SELF.frameOutline.cx * 2
@@ -711,26 +854,15 @@ i                                       LONG, AUTO
       SELF.framesActualSize.cx = rc.Width()
     END
   END
-  SELF.framesImage.CreateBitmap(SELF.framesActualSize.cx, SELF.framesActualSize.cy, SELF.pixelFormat)
-  g.FromImage(SELF.framesImage)
   
-  !- erase background
-  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
-  g.FillRectangle(brush, 0, 0, SELF.framesActualSize.cx, SELF.framesActualSize.cy)
-  brush.DeleteBrush()
-  
-  IF SELF.bRetainOriginalAspectRatio AND SELF.frameBkColor <> COLOR:NONE
-    bFillFrameBackground = TRUE
-    frameBrush.CreateSolidBrush(GdipMakeARGB(SELF.frameBkColor))
-  END
-  
-  !- loop thru all entries
-  SELF.framesCount = 0
-  x = SELF.frameOutline.cx
-  y = SELF.frameOutline.cy
-  LOOP i=1 TO numEntries
-    GET(SELF.framesData, i)
-    !- create combined image.
+TBaseImageSelector.CreateFrame          PROCEDURE(LONG pFrameIndex, TGdiPlusGraphics g, TGdiPlusSolidBrush bkBrush, *SIGNED pX, *SIGNED pY)
+frame                                     TGdiPlusImage
+thumbnailSize                             LIKE(SIZE)
+thumbnailPos                              LIKE(POINT)
+thumbnail                                 TGdiPlusImage
+  CODE
+  GET(SELF.framesData, pFrameIndex)
+  IF NOT ERRORCODE()
     !- ignore those frames with null or empty data.
     IF NOT SELF.framesData.ImageData &= NULL AND LEN(SELF.framesData.ImageData) > 0 AND frame.FromString(SELF.framesData.ImageData) = GpStatus:Ok
       !- count the images
@@ -740,19 +872,19 @@ i                                       LONG, AUTO
       IF NOT SELF.bRetainOriginalAspectRatio
         !- don't change thumbnail size
         thumbnailSize = SELF.thumbnailSize
-        thumbnailPos.x = x
-        thumbnailPos.y = y
+        thumbnailPos.x = pX
+        thumbnailPos.y = pY
       ELSE
         !- calculate thumbnail size to retain original aspect ratio
-        thumbnailPos.x = x
-        thumbnailPos.y = y
+        thumbnailPos.x = pX
+        thumbnailPos.y = pY
         SELF.CalcThumbnailSize(frame, SELF.thumbnailSize, SELF.bCenterThumbnails, thumbnailSize, thumbnailPos)
       END
       frame.GetThumbnailImage(thumbnailSize.cx, thumbnailSize.cy, thumbnail)
       
       !- thumbnail background
-      IF bFillFrameBackground AND SELF.frameBkColor <> COLOR:NONE
-        g.FillRectangle(frameBrush, x, y, SELF.thumbnailSize.cx, SELF.thumbnailSize.cy)
+      IF SELF.bRetainOriginalAspectRatio AND SELF.frameBkColor <> COLOR:NONE
+        g.FillRectangle(bkBrush, thumbnailPos.x, thumbnailPos.y, SELF.thumbnailSize.cx, SELF.thumbnailSize.cy)
       END
       
       !- append the thumbnail to combined image
@@ -764,14 +896,56 @@ i                                       LONG, AUTO
       !- shift down/right
       CASE SELF.orientation
       OF IMGSEL_ORIENTATION_VERTICAL
-        y += SELF.thumbnailSize.cy + SELF.frameOutline.cy
+        pY += SELF.thumbnailSize.cy + SELF.frameOutline.cy
       OF IMGSEL_ORIENTATION_HORIZONTAL
-        x += SELF.thumbnailSize.cx + SELF.frameOutline.cx
+        pX += SELF.thumbnailSize.cx + SELF.frameOutline.cx
       END
     ELSE
       !- Notify a host that the entry is not an image
       SELF.OnFrameRejected(SELF.framesData.Descr)
     END
+  ELSE
+    printd('TImageSelector.CreateFrame(%i) error: invalid index', pFrameIndex)
+  END
+  
+TBaseImageSelector.CreateFramesImage    PROCEDURE()
+rc                                        TRect
+g                                         TGdiPlusGraphics
+brush                                     TGdiPlusSolidBrush
+frameBrush                                TGdiPlusSolidBrush
+x                                         SIGNED, AUTO
+y                                         SIGNED, AUTO
+numEntries                                UNSIGNED, AUTO
+i                                         LONG, AUTO
+  CODE
+  SELF.GetClientRect(rc)
+
+  !- number of entries
+  numEntries = RECORDS(SELF.framesData)
+  
+  SELF.CalcSizes(rc)
+
+  !- create image of combined thumbnails
+  SELF.framesImage &= NEW TGdiPlusBitmap
+  SELF.framesImage.CreateBitmap(SELF.framesActualSize.cx, SELF.framesActualSize.cy, SELF.pixelFormat)
+  g.FromImage(SELF.framesImage)
+  
+  !- erase background
+  brush.CreateSolidBrush(GdipMakeARGB(SELF.bkColor))
+  g.FillRectangle(brush, 0, 0, SELF.framesActualSize.cx, SELF.framesActualSize.cy)
+  brush.DeleteBrush()
+  
+  IF SELF.bRetainOriginalAspectRatio AND SELF.frameBkColor <> COLOR:NONE
+    frameBrush.CreateSolidBrush(GdipMakeARGB(SELF.frameBkColor))
+  END
+  
+  !- loop thru all entries
+  SELF.framesCount = 0
+  x = SELF.frameOutline.cx
+  y = SELF.frameOutline.cy
+  LOOP i=1 TO numEntries
+    !- create combined image.
+    SELF.CreateFrame(i, g, frameBrush, x, y)
   END
   
   IF SELF.framesCount < numEntries
@@ -795,11 +969,11 @@ i                                       LONG, AUTO
   !- free data queue
   FREE(SELF.framesData)
 
-TBaseImageSelector.RedrawFramesImage  PROCEDURE(TDC dc)
-g                                       TGdiPlusGraphics
-rc                                      TRect
-destRect                                LIKE(GpRect)
-srcRect                                 LIKE(GpRect)
+TBaseImageSelector.RedrawFramesImage    PROCEDURE(TDC dc)
+g                                         TGdiPlusGraphics
+rc                                        TRect
+destRect                                  LIKE(GpRect)
+srcRect                                   LIKE(GpRect)
   CODE
   g.FromHDC(dc.GetHandle())
   SELF.GetClientRect(rc)
@@ -828,11 +1002,11 @@ srcRect                                 LIKE(GpRect)
   
   SELF.visibleRect = srcRect
   
-TBaseImageSelector.GetCurrentSelRect  PROCEDURE(*GpRectF pSelRect)
+TBaseImageSelector.GetCurrentSelRect    PROCEDURE(*GpRectF pSelRect)
   CODE
   SELF.GetSelRect(SELF.currentFrame, pSelRect)
   
-TBaseImageSelector.GetSelRect PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pSelRect)
+TBaseImageSelector.GetSelRect           PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pSelRect)
   CODE
   CASE SELF.orientation
   OF IMGSEL_ORIENTATION_VERTICAL
@@ -849,21 +1023,21 @@ TBaseImageSelector.GetSelRect PROCEDURE(UNSIGNED pFrameIndex, *GpRectF pSelRect)
     printd('TBaseImageSelector.GetFrameRect(%i) failed: invalid orientation.', pFrameIndex)
   END
 
-TBaseImageSelector.GetSelRect PROCEDURE(UNSIGNED pFrameIndex, *TRect pSelRect)
-rc                              LIKE(GpRectF)
+TBaseImageSelector.GetSelRect           PROCEDURE(UNSIGNED pFrameIndex, *TRect pSelRect)
+rc                                        LIKE(GpRectF)
   CODE
   SELF.GetSelRect(pFrameIndex, rc)
   pSelRect.Assign(rc.x, rc.y, rc.x+rc.width, rc.y+rc.height)
   
-TBaseImageSelector.CalcThumbnailSize  PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos)
-rImageWidth                             REAL, AUTO
-rImageHeight                            REAL, AUTO
-rFrameWidth                             REAL, AUTO
-rFrameHeight                            REAL, AUTO
-rImageAspectRatio                       REAL, AUTO
-rFrameAspectRatio                       REAL, AUTO
-nNewWidth                               UNSIGNED, AUTO
-nNewHeight                              UNSIGNED, AUTO
+TBaseImageSelector.CalcThumbnailSize    PROCEDURE(TGdiPlusImage pImage, SIZE pFrameSize, BOOL pDoCenter, *SIZE pThumbnailSize, *POINT pThumbnailPos)
+rImageWidth                               REAL, AUTO
+rImageHeight                              REAL, AUTO
+rFrameWidth                               REAL, AUTO
+rFrameHeight                              REAL, AUTO
+rImageAspectRatio                         REAL, AUTO
+rFrameAspectRatio                         REAL, AUTO
+nNewWidth                                 UNSIGNED, AUTO
+nNewHeight                                UNSIGNED, AUTO
   CODE
   rImageWidth = pImage.GetWidth()
   rImageHeight = pImage.GetHeight()
@@ -891,17 +1065,17 @@ nNewHeight                              UNSIGNED, AUTO
     pThumbnailSize = pFrameSize
   END
   
-TBaseImageSelector.DrawSelection  PROCEDURE(TGdiPlusGraphics pGrahpics, UNSIGNED pFrameIndex, LONG pColor)
-selRect                             LIKE(GpRectF)
-pen                                 TGdiPlusPen
+TBaseImageSelector.DrawSelection        PROCEDURE(TGdiPlusGraphics pGrahpics, UNSIGNED pFrameIndex, LONG pColor)
+selRect                                   LIKE(GpRectF)
+pen                                       TGdiPlusPen
   CODE
   SELF.GetSelRect(pFrameIndex, selRect)
   pen.CreatePen(GdipMakeARGB(pColor), SELF.selPenWidth)
   pGrahpics.DrawRectangle(pen, selRect)
   pen.DeletePen()
 
-TBaseImageSelector.OnPaint    PROCEDURE()
-dc                              TPaintDC
+TBaseImageSelector.OnPaint              PROCEDURE()
+dc                                        TPaintDC
   CODE
   IF SELF.framesImage &= NULL
     !- first run
@@ -911,30 +1085,30 @@ dc                              TPaintDC
   dc.GetDC(SELF)
   SELF.RedrawFramesImage(dc)
     
-TBaseImageSelector.OnVScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
+TBaseImageSelector.OnVScroll            PROCEDURE(UNSIGNED wParam, LONG lParam)
   CODE
   IF SELF.orientation = IMGSEL_ORIENTATION_VERTICAL
     RETURN SELF.OnScroll(wParam, lParam)
   END
   RETURN TRUE
     
-TBaseImageSelector.OnHScroll  PROCEDURE(UNSIGNED wParam, LONG lParam)
+TBaseImageSelector.OnHScroll            PROCEDURE(UNSIGNED wParam, LONG lParam)
   CODE
   IF SELF.orientation = IMGSEL_ORIENTATION_HORIZONTAL
     RETURN SELF.OnScroll(wParam, lParam)
   END
   RETURN TRUE
 
-TBaseImageSelector.OnScroll   PROCEDURE(UNSIGNED wParam, LONG lParam)
+TBaseImageSelector.OnScroll             PROCEDURE(UNSIGNED wParam, LONG lParam)
 !https://stackoverflow.com/questions/32094254/how-to-control-scrollbar-in-vc-win32-api
-sbType                          SIGNED, AUTO
-lineScrollPos                   UNSIGNED, AUTO
-pageScrollPos                   UNSIGNED, AUTO
-scrollPos                       SIGNED, AUTO
-action                          USHORT, AUTO
-si                              LIKE(SCROLLINFO)
-dc                              TDC
-rc                              TRect
+sbType                                    SIGNED, AUTO
+lineScrollPos                             UNSIGNED, AUTO
+pageScrollPos                             UNSIGNED, AUTO
+scrollPos                                 SIGNED, AUTO
+action                                    USHORT, AUTO
+si                                        LIKE(SCROLLINFO)
+dc                                        TDC
+rc                                        TRect
   CODE
   SELF.GetClientRect(rc)
   
@@ -992,10 +1166,10 @@ rc                              TRect
   
   RETURN FALSE
 
-TBaseImageSelector.OnMouseWheel   PROCEDURE(UNSIGNED wParam)
-distance                            SHORT, AUTO
-vKey                                SHORT, AUTO
-action                              USHORT, AUTO
+TBaseImageSelector.OnMouseWheel         PROCEDURE(UNSIGNED wParam)
+distance                                  SHORT, AUTO
+vKey                                      SHORT, AUTO
+action                                    USHORT, AUTO
   CODE
   distance = HIWORD(wParam)
   vKey = LOWORD(wParam)
@@ -1025,11 +1199,11 @@ action                              USHORT, AUTO
   END
   RETURN TRUE
 
-TBaseImageSelector.OnLButtonDown  PROCEDURE(UNSIGNED wParam, LONG lParam)
-pt                                  LIKE(POINT)
-rc                                  TRect
-n                                   LONG(0)
-bFrameClicked                       BOOL(FALSE)
+TBaseImageSelector.OnLButtonDown        PROCEDURE(UNSIGNED wParam, LONG lParam)
+pt                                        LIKE(POINT)
+rc                                        TRect
+n                                         LONG(0)
+bFrameClicked                             BOOL(FALSE)
   CODE
   SELF.GetClientRect(rc)
   
@@ -1072,8 +1246,8 @@ bFrameClicked                       BOOL(FALSE)
   !- call default handler DefSubclassProc
   RETURN TRUE
 
-TBaseImageSelector.OnLButtonUp    PROCEDURE(UNSIGNED wParam, LONG lParam)
-pt                                  LIKE(POINT)
+TBaseImageSelector.OnLButtonUp          PROCEDURE(UNSIGNED wParam, LONG lParam)
+pt                                        LIKE(POINT)
   CODE
   IF SELF.bDragModeActive
     SELF.ReleaseCapture()
@@ -1088,32 +1262,32 @@ pt                                  LIKE(POINT)
   
   RETURN TRUE
   
-TBaseImageSelector.OnMouseMove    PROCEDURE(UNSIGNED wParam, LONG lParam)
-pt                                  LIKE(POINT)
+TBaseImageSelector.OnMouseMove          PROCEDURE(UNSIGNED wParam, LONG lParam)
+pt                                        LIKE(POINT)
   CODE
   IF SELF.bDragModeActive
     pt.x = GET_X_LPARAM(lParam)
     pt.y = GET_Y_LPARAM(lParam)
   END
   
-TBaseImageSelector.OnCaptureChanged   PROCEDURE(LONG lParam)
+TBaseImageSelector.OnCaptureChanged     PROCEDURE(LONG lParam)
   CODE
 
-TBaseImageSelector.OnFrameSelected    PROCEDURE(UNSIGNED pFrameIndex)
+TBaseImageSelector.OnFrameSelected      PROCEDURE(UNSIGNED pFrameIndex)
   CODE
     
-TBaseImageSelector.OnFrameRejected    PROCEDURE(STRING pFrameDescr)
+TBaseImageSelector.OnFrameRejected      PROCEDURE(STRING pFrameDescr)
   CODE
 
-TBaseImageSelector.OnFrameDeleted PROCEDURE(UNSIGNED pFrameIndex)
+TBaseImageSelector.OnFrameDeleted       PROCEDURE(UNSIGNED pFrameIndex)
   CODE
   
-TBaseImageSelector.OnDrop     PROCEDURE(UNSIGNED pFrameIndex, POINT pPt)
+TBaseImageSelector.OnDrop               PROCEDURE(UNSIGNED pFrameIndex, POINT pPt)
   CODE
 !!!endregion
 
 !!!region TVerticalImageSelector
-TVerticalImageSelector.PrepareControl PROCEDURE()
+TVerticalImageSelector.PrepareControl   PROCEDURE()
   CODE
   SELF.orientation = IMGSEL_ORIENTATION_VERTICAL
   SELF.FEQ{PROP:VScroll} = TRUE
@@ -1121,7 +1295,7 @@ TVerticalImageSelector.PrepareControl PROCEDURE()
 !!!endregion
 
 !!!!region THorizontalImageSelector
-THorizontalImageSelector.PrepareControl   PROCEDURE()
+THorizontalImageSelector.PrepareControl PROCEDURE()
   CODE
   SELF.orientation = IMGSEL_ORIENTATION_HORIZONTAL
   SELF.FEQ{PROP:HScroll} = TRUE
